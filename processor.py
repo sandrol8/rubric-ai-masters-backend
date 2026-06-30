@@ -87,12 +87,35 @@ Resultados e Discussão devem conter OBRIGATORIAMENTE:
 }
 
 
-def inserir_comentario(paragrafo, texto_comentario, autor="Rubric AI"):
-    doc = paragrafo._element.getparent().getparent().getparent()
-    comentarios = doc.find(qn('w:comments'))
-    if comentarios is None:
-        comentarios = OxmlElement('w:comments')
-        doc.append(comentarios)
+def obter_ou_criar_parte_comentarios(documento):
+    """Obtém a parte de comentários do documento .docx, criando-a se necessário."""
+    from docx.opc.constants import RELATIONSHIP_TYPE as RT
+    from docx.oxml import parse_xml
+    from docx.opc.part import Part
+    from docx.opc.packuri import PackURI
+
+    part = documento.part
+    try:
+        comments_part = part.part_related_by(RT.COMMENTS)
+        return comments_part.element
+    except KeyError:
+        pass
+
+    comments_xml = (
+        b'<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+        b'<w:comments xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'
+    )
+    comments_element = parse_xml(comments_xml)
+    partname = PackURI("/word/comments.xml")
+    content_type = "application/vnd.openxmlformats-officedocument.wordprocessingml.comments+xml"
+    new_part = Part(partname, content_type, comments_xml, part.package)
+    new_part._element = comments_element
+    part.relate_to(new_part, RT.COMMENTS)
+    return comments_element
+
+
+def inserir_comentario(documento, paragrafo, texto_comentario, autor="Rubric AI"):
+    comentarios = obter_ou_criar_parte_comentarios(documento)
     ids_existentes = [int(c.get(qn('w:id'), 0)) for c in comentarios.findall(qn('w:comment'))]
     novo_id = max(ids_existentes, default=0) + 1
     comentario = OxmlElement('w:comment')
@@ -221,7 +244,7 @@ Retorne APENAS um JSON válido, sem texto adicional, sem markdown:
             continue
         prefixo = "[DESVIO DO PROJETO]" if tipo == "desvio_projeto" else f"[Rubric AI V{numero_versao}]"
         try:
-            inserir_comentario(paragrafos[idx], f"{prefixo} {comentario}")
+            inserir_comentario(doc, paragrafos[idx], f"{prefixo} {comentario}")
             inseridos += 1
         except Exception as e:
             logger.error(f"Falha ao inserir comentário no parágrafo {idx}: {e}")
