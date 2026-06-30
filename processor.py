@@ -1,4 +1,6 @@
 import os
+import json
+import logging
 import tempfile
 from docx import Document
 from docx.oxml.ns import qn
@@ -6,6 +8,9 @@ from docx.oxml import OxmlElement
 from datetime import datetime
 import openai
 from extrator import extrair_texto_docx
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger("rubric-ai-masters")
 
 openai.api_key = os.environ.get("OPENAI_API_KEY")
 
@@ -41,7 +46,7 @@ SE FOR PESQUISA BIBLIOGRÁFICA (verificar todos os itens):
 4. PERÍODO DELIMITADO: Recorte temporal definido (normalmente últimos 5 ou 10 anos).
 5. PLATAFORMAS DE BUSCA: Indicação clara de onde a busca foi feita (ex: SciELO, Periódicos CAPES).
 6. CRITÉRIOS DE INCLUSÃO E EXCLUSÃO: Quais regras definiram o que entra e o que sai da pesquisa.
-7. DESCRIÇÃO QUANTITATIVA DO FUNIL: 
+7. DESCRIÇÃO QUANTITATIVA DO FUNIL:
    - Quantos materiais vieram inicialmente com as palavras-chave
    - Quantos foram excluídos (ex: leitura de títulos/resumos)
    - Quantos trabalhos restaram para análise final
@@ -116,71 +121,121 @@ def inserir_comentario(paragrafo, texto_comentario, autor="Rubric AI"):
     paragrafo._element.append(r_start)
 
 
+def extrair_resposta_json(texto_resposta: str):
+    """Extrai e faz parse do JSON retornado pela IA, tolerando blocos markdown."""
+    texto = texto_resposta.strip()
+    if "```json" in texto:
+        texto = texto.split("```json")[1].split("```")[0]
+    elif "```" in texto:
+        texto = texto.split("```")[1].split("```")[0]
+    return json.loads(texto.strip())
+
+
 async def processar_documento(caminho_versao, caminho_projeto, nome_aluno, numero_versao, capitulos):
-    from extrator import extrair_texto_docx
     texto_versao = extrair_texto_docx(caminho_versao)
-    contexto_projeto = ""
+
+    contexto_projeto = "NENHUM PROJETO DE CAPSTONE FOI ENVIADO PARA ESTE ALUNO."
     if caminho_projeto:
         texto_projeto = extrair_texto_docx(caminho_projeto)
-        contexto_projeto = f"PROJETO DE CAPSTONE (documento de referência aprovado pelo professor):\n{texto_projeto[:3000]}"
+        contexto_projeto = f"""PROJETO DE CAPSTONE APROVADO (documento de referência oficial do tema, problema de pesquisa, objetivos e metodologia aprovados para este aluno):
+{texto_projeto[:4000]}"""
+
     criterios_aplicaveis = ""
     for cap in capitulos:
         cap = cap.strip().lower()
         if cap in CRITERIOS:
             criterios_aplicaveis += f"\n=== {cap.upper()} ===\n"
             criterios_aplicaveis += CRITERIOS[cap]
+
     prompt_sistema = f"""Você é avaliador especialista de monografias de mestrado da Must University.
 Sua função é analisar o texto enviado e gerar feedback construtivo e preciso em português brasileiro.
 Norma acadêmica: APA.
 
 {contexto_projeto}
 
+VERIFICAÇÃO DE ADERÊNCIA AO PROJETO (CRITÉRIO OBRIGATÓRIO E PRIORITÁRIO):
+Antes de qualquer outra análise, compare o conteúdo da monografia abaixo com o Projeto de Capstone acima.
+- O tema tratado na monografia é o MESMO tema aprovado no projeto?
+- O problema de pesquisa, os objetivos e a metodologia da monografia estão alinhados com o que foi aprovado no projeto?
+- Se o aluno se afastou do tema, objetivo ou metodologia originalmente aprovados, isso é um problema GRAVE.
+  Gere um comentário específico apontando claramente o desvio, citando o que foi aprovado no projeto e o que está sendo
+  apresentado de diferente na monografia. Marque esse comentário com tipo "desvio_projeto".
+- Se não houver projeto de capstone enviado, ignore esta verificação.
+
 CRITÉRIOS OBRIGATÓRIOS POR CAPÍTULO:
 {criterios_aplicaveis}
+
+O TEXTO DA MONOGRAFIA ABAIXO ESTÁ NUMERADO POR PARÁGRAFO NO FORMATO "[N] texto".
+Use EXATAMENTE o número N entre colchetes como "paragrafo_indice" na sua resposta. Não invente índices.
 
 INSTRUÇÕES IMPORTANTES:
 - Seja específico: aponte o problema exato e sugira como corrigir
 - Use tom respeitoso e construtivo
-- NÃO comente parágrafos que estão corretos (tipo "aprovado")
-- Foque apenas em ausências, erros e melhorias necessárias
-- Considere o contexto do projeto de capstone ao avaliar
+- NÃO comente parágrafos que estão corretos
+- Foque apenas em ausências, erros, melhorias necessárias e desvios em relação ao projeto aprovado
+- O comentário de desvio de projeto (se houver) deve ser o primeiro a aparecer, ancorado no parágrafo mais relevante (geralmente o de contextualização ou problema de pesquisa)
 
 Retorne APENAS um JSON válido, sem texto adicional, sem markdown:
-[{{"paragrafo_indice": 0, "comentario": "texto do comentário", "tipo": "ausencia|melhoria"}}]"""
+[{{"paragrafo_indice": 0, "comentario": "texto do comentário", "tipo": "ausencia|melhoria|desvio_projeto"}}]"""
 
     cliente = openai.OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
     resposta = cliente.chat.completions.create(
         model="gpt-4o",
         messages=[
             {"role": "system", "content": prompt_sistema},
-            {"role": "user", "content": f"Monografia de {nome_aluno} (V{numero_versao}):\n\n{texto_versao[:8000]}"}
+            {"role": "user", "content": f"Monografia de {nome_aluno} (V{numero_versao}), texto numerado por parágrafo:\n\n{texto_versao[:9000]}"}
         ],
         temperature=0.3
     )
-    import json
-    texto_resposta = resposta.choices[0].message.content.strip()
-    if "```json" in texto_resposta:
-        texto_resposta = texto_resposta.split("```json")[1].split("```")[0]
-    elif "```" in texto_resposta:
-        texto_resposta = texto_resposta.split("```")[1].split("```")[0]
-    comentarios_ia = json.loads(texto_resposta)
+
+    texto_resposta = resposta.choices[0].message.content
+    logger.info(f"Resposta bruta da IA: {texto_resposta[:2000]}")
+
+    try:
+        comentarios_ia = extrair_resposta_json(texto_resposta)
+    except Exception as e:
+        logger.error(f"Falha ao fazer parse do JSON da IA: {e}")
+        logger.error(f"Texto recebido: {texto_resposta}")
+        raise ValueError(f"A IA retornou um formato inesperado e o documento não pôde ser comentado: {e}")
+
+    if not isinstance(comentarios_ia, list):
+        raise ValueError("A resposta da IA não é uma lista de comentários como esperado.")
+
     doc = Document(caminho_versao)
-    paragrafos = [p for p in doc.paragraphs if p.text.strip()]
+    # Índice IDÊNTICO ao usado no extrator.py: doc.paragraphs bruto, sem filtrar vazios
+    paragrafos = doc.paragraphs
+
+    inseridos = 0
+    falhas = 0
     for item in comentarios_ia:
-        idx = item.get("paragrafo_indice", 0)
+        idx = item.get("paragrafo_indice")
         comentario = item.get("comentario", "")
         tipo = item.get("tipo", "melhoria")
-        if tipo != "aprovado" and idx < len(paragrafos):
-            try:
-                inserir_comentario(paragrafos[idx], f"[Rubric AI V{numero_versao}] {comentario}")
-            except Exception:
-                pass
+        if idx is None or not comentario:
+            continue
+        if tipo == "aprovado":
+            continue
+        if idx < 0 or idx >= len(paragrafos):
+            logger.warning(f"Índice de parágrafo fora do intervalo: {idx} (total: {len(paragrafos)})")
+            falhas += 1
+            continue
+        prefixo = "[DESVIO DO PROJETO]" if tipo == "desvio_projeto" else f"[Rubric AI V{numero_versao}]"
+        try:
+            inserir_comentario(paragrafos[idx], f"{prefixo} {comentario}")
+            inseridos += 1
+        except Exception as e:
+            logger.error(f"Falha ao inserir comentário no parágrafo {idx}: {e}")
+            falhas += 1
+
+    logger.info(f"Comentários inseridos: {inseridos} | Falhas: {falhas} | Total recebido da IA: {len(comentarios_ia)}")
+
+    if inseridos == 0:
+        raise ValueError(
+            f"Nenhum comentário pôde ser inserido no documento. "
+            f"A IA retornou {len(comentarios_ia)} comentário(s), mas {falhas} falharam por índice inválido."
+        )
+
     with tempfile.NamedTemporaryFile(delete=False, suffix=".docx") as tmp:
         caminho_resultado = tmp.name
     doc.save(caminho_resultado)
     return caminho_resultado
-
-
-
-
-    
