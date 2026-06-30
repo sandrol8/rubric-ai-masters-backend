@@ -1,10 +1,10 @@
 import os
 import json
 import logging
+import shutil
 import tempfile
-from docx import Document
-from docx.oxml.ns import qn
-from docx.oxml import OxmlElement
+import zipfile
+from lxml import etree
 from datetime import datetime
 import openai
 from extrator import extrair_texto_docx
@@ -14,134 +14,82 @@ logger = logging.getLogger("rubric-ai-masters")
 
 openai.api_key = os.environ.get("OPENAI_API_KEY")
 
+W_NS = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+CT_NS = "http://schemas.openxmlformats.org/package/2006/content-types"
+RELS_NS = "http://schemas.openxmlformats.org/package/2006/relationships"
+NSMAP = {"w": W_NS}
+
 CRITERIOS = {
     "introducao": """
-A Introdução deve conter OBRIGATORIAMENTE todos os elementos abaixo. Aponte como erro/melhoria qualquer ausência:
+A Introducao deve conter OBRIGATORIAMENTE todos os elementos abaixo. Aponte como erro/melhoria qualquer ausencia:
 
-1. CONTEXTUALIZAÇÃO DO TEMA: O aluno apresenta o tema escolhido com relevância clara, preferencialmente com fundamentação teórica (citações). Aponte se falta fundamentação na contextualização.
+1. CONTEXTUALIZACAO DO TEMA: O aluno apresenta o tema escolhido com relevancia clara, preferencialmente com fundamentacao teorica (citacoes). Aponte se falta fundamentacao na contextualizacao.
 
-2. PROBLEMA DE PESQUISA: Deve derivar da contextualização e OBRIGATORIAMENTE estar em forma de pergunta. Aponte como erro grave se não for uma pergunta.
+2. PROBLEMA DE PESQUISA: Deve derivar da contextualizacao e OBRIGATORIAMENTE estar em forma de pergunta. Aponte como erro grave se nao for uma pergunta.
 
 3. OBJETIVO GERAL: Deve derivar diretamente do problema de pesquisa.
 
-4. OBJETIVOS ESPECÍFICOS: Máximo de 3 ou 4. Aponte como erro se houver mais de 4.
+4. OBJETIVOS ESPECIFICOS: Maximo de 3 ou 4. Aponte como erro se houver mais de 4.
 
-5. JUSTIFICATIVA: Deve apresentar claramente por que a pesquisa é relevante. Aponte se estiver ausente ou vaga.
+5. JUSTIFICATIVA: Deve apresentar claramente por que a pesquisa e relevante. Aponte se estiver ausente ou vaga.
 
-6. INDICAÇÃO METODOLÓGICA: Deve indicar brevemente qual será a metodologia, sem detalhar.
+6. INDICACAO METODOLOGICA: Deve indicar brevemente qual sera a metodologia, sem detalhar.
 
-7. PARÁGRAFO DE SÍNTESE (ESTRUTURA): O último parágrafo deve descrever como o trabalho está organizado (ex: "O capítulo 2 aborda..."). Aponte como erro se estiver ausente.
+7. PARAGRAFO DE SINTESE (ESTRUTURA): O ultimo paragrafo deve descrever como o trabalho esta organizado (ex: "O capitulo 2 aborda..."). Aponte como erro se estiver ausente.
 
-8. FREQUÊNCIA DE CITAÇÕES: O texto deve conter citações/referências a cada 2 ou 3 parágrafos no mínimo. Aponte trechos longos sem citação.
+8. FREQUENCIA DE CITACOES: O texto deve conter citacoes/referencias a cada 2 ou 3 paragrafos no minimo. Aponte trechos longos sem citacao.
 """,
     "metodologia": """
 A Metodologia deve conter OBRIGATORIAMENTE todos os elementos abaixo:
 
 REGRAS GERAIS:
-1. DESCRIÇÃO DA METODOLOGIA: O tipo de pesquisa (bibliográfica, de campo, etc.) deve estar claramente descrito.
-2. FUNDAMENTAÇÃO DA ESCOLHA: Mínimo de 2 autores diferentes de metodologia científica fundamentando a escolha. Aponte como erro grave se houver menos de 2 autores.
+1. DESCRICAO DA METODOLOGIA: O tipo de pesquisa (bibliografica, de campo, etc.) deve estar claramente descrito.
+2. FUNDAMENTACAO DA ESCOLHA: Minimo de 2 autores diferentes de metodologia cientifica fundamentando a escolha. Aponte como erro grave se houver menos de 2 autores.
 
-SE FOR PESQUISA BIBLIOGRÁFICA (verificar todos os itens):
+SE FOR PESQUISA BIBLIOGRAFICA (verificar todos os itens):
 3. DESCRITORES/PALAVRAS-CHAVE: Quais termos foram usados na busca.
-4. PERÍODO DELIMITADO: Recorte temporal definido (normalmente últimos 5 ou 10 anos).
-5. PLATAFORMAS DE BUSCA: Indicação clara de onde a busca foi feita (ex: SciELO, Periódicos CAPES).
-6. CRITÉRIOS DE INCLUSÃO E EXCLUSÃO: Quais regras definiram o que entra e o que sai da pesquisa.
-7. DESCRIÇÃO QUANTITATIVA DO FUNIL:
+4. PERIODO DELIMITADO: Recorte temporal definido (normalmente ultimos 5 ou 10 anos).
+5. PLATAFORMAS DE BUSCA: Indicacao clara de onde a busca foi feita (ex: SciELO, Periodicos CAPES).
+6. CRITERIOS DE INCLUSAO E EXCLUSAO: Quais regras definiram o que entra e o que sai da pesquisa.
+7. DESCRICAO QUANTITATIVA DO FUNIL:
    - Quantos materiais vieram inicialmente com as palavras-chave
-   - Quantos foram excluídos (ex: leitura de títulos/resumos)
-   - Quantos trabalhos restaram para análise final
+   - Quantos foram excluidos (ex: leitura de titulos/resumos)
+   - Quantos trabalhos restaram para analise final
 8. QUADRO DE OBRAS RESULTANTES: Quadro apresentando as obras finais (pode estar aqui ou nos Resultados).
 
-SE FOR PESQUISA DE CAMPO/EMPÍRICA:
-9. APROVAÇÃO PRÉVIA: Deve ter sido indicada e aprovada no projeto de capstone.
-10. PROCEDIMENTOS ADOTADOS: Indicação clara e detalhada dos procedimentos de coleta e análise de dados.
+SE FOR PESQUISA DE CAMPO/EMPIRICA:
+9. APROVACAO PREVIA: Deve ter sido indicada e aprovada no projeto de capstone.
+10. PROCEDIMENTOS ADOTADOS: Indicacao clara e detalhada dos procedimentos de coleta e analise de dados.
 """,
     "fundamentacao": """
-A Fundamentação Teórica deve conter OBRIGATORIAMENTE:
+A Fundamentacao Teorica deve conter OBRIGATORIAMENTE:
 
-1. APRESENTAÇÃO DAS OBRAS: Deve apresentar e discutir as obras encontradas no levantamento bibliográfico (produções dos últimos 5 ou 10 anos).
+1. APRESENTACAO DAS OBRAS: Deve apresentar e discutir as obras encontradas no levantamento bibliografico (producoes dos ultimos 5 ou 10 anos).
 
-2. ALINHAMENTO COM OBJETIVOS: O conteúdo deve contribuir para responder ao problema de pesquisa e atingir os objetivos definidos na introdução.
+2. ALINHAMENTO COM OBJETIVOS: O conteudo deve contribuir para responder ao problema de pesquisa e atingir os objetivos definidos na introducao.
 
-3. DIÁLOGO ENTRE AUTORES: Os autores devem dialogar entre si. Aponte como erro citações isoladas sem conexão entre elas.
+3. DIALOGO ENTRE AUTORES: Os autores devem dialogar entre si. Aponte como erro citacoes isoladas sem conexao entre elas.
 
-4. ATUALIDADE DA BIBLIOGRAFIA: Aponte uso de bibliografia muito antiga (salvo obras clássicas reconhecidas).
+4. ATUALIDADE DA BIBLIOGRAFIA: Aponte uso de bibliografia muito antiga (salvo obras classicas reconhecidas).
 
-5. FIDELIDADE AO TEMA: Aponte se o conteúdo se afasta do tema proposto nos objetivos.
+5. FIDELIDADE AO TEMA: Aponte se o conteudo se afasta do tema proposto nos objetivos.
 
-6. FREQUÊNCIA DE CITAÇÕES: Citações a cada 2 ou 3 parágrafos no mínimo.
+6. FREQUENCIA DE CITACOES: Citacoes a cada 2 ou 3 paragrafos no minimo.
 """,
     "resultados": """
-Resultados e Discussão devem conter OBRIGATORIAMENTE:
+Resultados e Discussao devem conter OBRIGATORIAMENTE:
 
-1. APRESENTAÇÃO DOS RESULTADOS: Apresentação clara dos dados coletados ou das informações encontradas na literatura.
+1. APRESENTACAO DOS RESULTADOS: Apresentacao clara dos dados coletados ou das informacoes encontradas na literatura.
 
-2. ANÁLISE E INTERPRETAÇÃO (DISCUSSÃO): O aluno deve interpretar, analisar e explicar o significado dos achados. Aponte se resultados são apresentados sem discussão crítica.
+2. ANALISE E INTERPRETACAO (DISCUSSAO): O aluno deve interpretar, analisar e explicar o significado dos achados. Aponte se resultados sao apresentados sem discussao critica.
 
-3. CONEXÃO COM OBJETIVOS E LITERATURA: Os achados devem ser conectados aos objetivos do trabalho e à literatura existente (diálogo com o conhecimento já produzido). Aponte se falta essa conexão.
+3. CONEXAO COM OBJETIVOS E LITERATURA: Os achados devem ser conectados aos objetivos do trabalho e a literatura existente (dialogo com o conhecimento ja produzido). Aponte se falta essa conexao.
 
-4. QUADRO DE OBRAS RESULTANTES: Se não foi apresentado na Metodologia, DEVE estar aqui obrigatoriamente. Aponte como erro se estiver ausente em ambos os capítulos.
+4. QUADRO DE OBRAS RESULTANTES: Se nao foi apresentado na Metodologia, DEVE estar aqui obrigatoriamente. Aponte como erro se estiver ausente em ambos os capitulos.
 
-5. FREQUÊNCIA DE CITAÇÕES: Citações a cada 2 ou 3 parágrafos no mínimo.
+5. FREQUENCIA DE CITACOES: Citacoes a cada 2 ou 3 paragrafos no minimo.
 """
 }
-
-
-def obter_ou_criar_parte_comentarios(documento):
-    """Obtém a parte de comentários do documento .docx, criando-a se necessário."""
-    from docx.opc.constants import RELATIONSHIP_TYPE as RT
-    from docx.oxml import parse_xml
-    from docx.opc.part import Part
-    from docx.opc.packuri import PackURI
-
-    part = documento.part
-    try:
-        comments_part = part.part_related_by(RT.COMMENTS)
-        return comments_part.element
-    except KeyError:
-        pass
-
-    comments_xml = (
-        b'<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
-        b'<w:comments xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'
-    )
-    comments_element = parse_xml(comments_xml)
-    partname = PackURI("/word/comments.xml")
-    content_type = "application/vnd.openxmlformats-officedocument.wordprocessingml.comments+xml"
-    new_part = Part(partname, content_type, comments_xml, part.package)
-    new_part._element = comments_element
-    part.relate_to(new_part, RT.COMMENTS)
-    return comments_element
-
-
-def inserir_comentario(documento, paragrafo, texto_comentario, autor="Rubric AI"):
-    comentarios = obter_ou_criar_parte_comentarios(documento)
-    ids_existentes = [int(c.get(qn('w:id'), 0)) for c in comentarios.findall(qn('w:comment'))]
-    novo_id = max(ids_existentes, default=0) + 1
-    comentario = OxmlElement('w:comment')
-    comentario.set(qn('w:id'), str(novo_id))
-    comentario.set(qn('w:author'), autor)
-    comentario.set(qn('w:date'), datetime.now().strftime("%Y-%m-%dT%H:%M:%SZ"))
-    comentario.set(qn('w:initials'), "RA")
-    p_comentario = OxmlElement('w:p')
-    r_comentario = OxmlElement('w:r')
-    t_comentario = OxmlElement('w:t')
-    t_comentario.text = texto_comentario
-    t_comentario.set('{http://www.w3.org/XML/1998/namespace}space', 'preserve')
-    r_comentario.append(t_comentario)
-    p_comentario.append(r_comentario)
-    comentario.append(p_comentario)
-    comentarios.append(comentario)
-    r_start = OxmlElement('w:r')
-    rpr = OxmlElement('w:rPr')
-    rStyle = OxmlElement('w:rStyle')
-    rStyle.set(qn('w:val'), 'CommentReference')
-    rpr.append(rStyle)
-    r_start.append(rpr)
-    commentRef = OxmlElement('w:commentReference')
-    commentRef.set(qn('w:id'), str(novo_id))
-    r_start.append(commentRef)
-    paragrafo._element.append(r_start)
 
 
 def extrair_resposta_json(texto_resposta: str):
@@ -154,82 +102,214 @@ def extrair_resposta_json(texto_resposta: str):
     return json.loads(texto.strip())
 
 
+def _qn(tag):
+    return "{%s}%s" % (W_NS, tag)
+
+
+def inserir_comentarios_no_docx(caminho_entrada, caminho_saida, comentarios_por_paragrafo, numero_versao):
+    """
+    Insere comentarios nativos do Word manipulando diretamente o pacote ZIP do .docx.
+    comentarios_por_paragrafo: lista de tuplas (indice_paragrafo, texto_comentario, tipo)
+    Retorna (inseridos, falhas).
+    """
+    pasta_temp = tempfile.mkdtemp()
+    try:
+        with zipfile.ZipFile(caminho_entrada, 'r') as z:
+            z.extractall(pasta_temp)
+
+        document_xml_path = os.path.join(pasta_temp, "word", "document.xml")
+        parser = etree.XMLParser(remove_blank_text=False)
+        tree = etree.parse(document_xml_path, parser)
+        root = tree.getroot()
+        body = root.find(_qn("body"))
+        paragrafos_xml = body.findall(_qn("p"))
+
+        comments_xml_path = os.path.join(pasta_temp, "word", "comments.xml")
+        if os.path.exists(comments_xml_path):
+            comments_tree = etree.parse(comments_xml_path, parser)
+            comments_root = comments_tree.getroot()
+        else:
+            comments_root = etree.Element(_qn("comments"), nsmap=NSMAP)
+
+        ids_existentes = [int(c.get(_qn("id"), 0)) for c in comments_root.findall(_qn("comment"))]
+        proximo_id = max(ids_existentes, default=-1) + 1
+
+        inseridos = 0
+        falhas = 0
+
+        for idx, texto_comentario, tipo in comentarios_por_paragrafo:
+            if idx < 0 or idx >= len(paragrafos_xml):
+                logger.warning("Indice de paragrafo fora do intervalo: %s (total: %s)" % (idx, len(paragrafos_xml)))
+                falhas += 1
+                continue
+            try:
+                paragrafo_xml = paragrafos_xml[idx]
+                comment_id = str(proximo_id)
+                proximo_id += 1
+
+                comment_el = etree.SubElement(comments_root, _qn("comment"))
+                comment_el.set(_qn("id"), comment_id)
+                comment_el.set(_qn("author"), "Rubric AI")
+                comment_el.set(_qn("date"), datetime.now().strftime("%Y-%m-%dT%H:%M:%SZ"))
+                comment_el.set(_qn("initials"), "RA")
+                p_el = etree.SubElement(comment_el, _qn("p"))
+                r_el = etree.SubElement(p_el, _qn("r"))
+                t_el = etree.SubElement(r_el, _qn("t"))
+                t_el.text = texto_comentario
+                t_el.set("{http://www.w3.org/XML/1998/namespace}space", "preserve")
+
+                ref_start = etree.SubElement(paragrafo_xml, _qn("commentRangeStart"))
+                ref_start.set(_qn("id"), comment_id)
+                ref_end = etree.SubElement(paragrafo_xml, _qn("commentRangeEnd"))
+                ref_end.set(_qn("id"), comment_id)
+                run_ref = etree.SubElement(paragrafo_xml, _qn("r"))
+                rpr_ref = etree.SubElement(run_ref, _qn("rPr"))
+                rstyle_ref = etree.SubElement(rpr_ref, _qn("rStyle"))
+                rstyle_ref.set(_qn("val"), "CommentReference")
+                comment_ref = etree.SubElement(run_ref, _qn("commentReference"))
+                comment_ref.set(_qn("id"), comment_id)
+
+                inseridos += 1
+            except Exception as e:
+                logger.error("Falha ao inserir comentario no paragrafo %s: %s" % (idx, e))
+                falhas += 1
+
+        if inseridos == 0:
+            return 0, falhas
+
+        os.makedirs(os.path.dirname(comments_xml_path), exist_ok=True)
+        comments_tree_final = etree.ElementTree(comments_root)
+        comments_tree_final.write(comments_xml_path, xml_declaration=True, encoding="UTF-8", standalone=True)
+
+        tree.write(document_xml_path, xml_declaration=True, encoding="UTF-8", standalone=True)
+
+        _garantir_relacionamento_comentarios(pasta_temp)
+        _garantir_content_type_comentarios(pasta_temp)
+
+        if os.path.exists(caminho_saida):
+            os.remove(caminho_saida)
+        with zipfile.ZipFile(caminho_saida, 'w', zipfile.ZIP_DEFLATED) as zf:
+            for raiz, _, arquivos in os.walk(pasta_temp):
+                for nome_arquivo in arquivos:
+                    caminho_completo = os.path.join(raiz, nome_arquivo)
+                    caminho_relativo = os.path.relpath(caminho_completo, pasta_temp)
+                    zf.write(caminho_completo, caminho_relativo)
+
+        return inseridos, falhas
+    finally:
+        shutil.rmtree(pasta_temp, ignore_errors=True)
+
+
+def _garantir_relacionamento_comentarios(pasta_temp):
+    rels_path = os.path.join(pasta_temp, "word", "_rels", "document.xml.rels")
+    parser = etree.XMLParser(remove_blank_text=False)
+    if os.path.exists(rels_path):
+        tree = etree.parse(rels_path, parser)
+        root = tree.getroot()
+    else:
+        os.makedirs(os.path.dirname(rels_path), exist_ok=True)
+        root = etree.Element("{%s}Relationships" % RELS_NS, nsmap={None: RELS_NS})
+        tree = etree.ElementTree(root)
+
+    ja_existe = any(r.get("Type", "").endswith("/comments") for r in root)
+    if not ja_existe:
+        ids = [r.get("Id", "") for r in root]
+        numeros = [int(i.replace("rId", "")) for i in ids if i.startswith("rId") and i.replace("rId", "").isdigit()]
+        novo_id = "rId%s" % (max(numeros, default=0) + 1)
+        rel = etree.SubElement(root, "{%s}Relationship" % RELS_NS)
+        rel.set("Id", novo_id)
+        rel.set("Type", "http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments")
+        rel.set("Target", "comments.xml")
+
+    tree.write(rels_path, xml_declaration=True, encoding="UTF-8", standalone=True)
+
+
+def _garantir_content_type_comentarios(pasta_temp):
+    ct_path = os.path.join(pasta_temp, "[Content_Types].xml")
+    parser = etree.XMLParser(remove_blank_text=False)
+    tree = etree.parse(ct_path, parser)
+    root = tree.getroot()
+    ja_existe = any(
+        el.get("PartName") == "/word/comments.xml" for el in root
+        if el.tag == "{%s}Override" % CT_NS
+    )
+    if not ja_existe:
+        override = etree.SubElement(root, "{%s}Override" % CT_NS)
+        override.set("PartName", "/word/comments.xml")
+        override.set("ContentType", "application/vnd.openxmlformats-officedocument.wordprocessingml.comments+xml")
+    tree.write(ct_path, xml_declaration=True, encoding="UTF-8", standalone=True)
+
+
 async def processar_documento(caminho_versao, caminho_projeto, nome_aluno, numero_versao, capitulos):
     texto_versao = extrair_texto_docx(caminho_versao)
 
     contexto_projeto = "NENHUM PROJETO DE CAPSTONE FOI ENVIADO PARA ESTE ALUNO."
     if caminho_projeto:
         texto_projeto = extrair_texto_docx(caminho_projeto)
-        contexto_projeto = f"""PROJETO DE CAPSTONE APROVADO (documento de referência oficial do tema, problema de pesquisa, objetivos e metodologia aprovados para este aluno):
-{texto_projeto[:4000]}"""
+        contexto_projeto = "PROJETO DE CAPSTONE APROVADO (documento de referencia oficial do tema, problema de pesquisa, objetivos e metodologia aprovados para este aluno):\n%s" % texto_projeto[:4000]
 
     criterios_aplicaveis = ""
     for cap in capitulos:
         cap = cap.strip().lower()
         if cap in CRITERIOS:
-            criterios_aplicaveis += f"\n=== {cap.upper()} ===\n"
+            criterios_aplicaveis += "\n=== %s ===\n" % cap.upper()
             criterios_aplicaveis += CRITERIOS[cap]
 
-    prompt_sistema = f"""Você é avaliador especialista de monografias de mestrado da Must University.
-Sua função é analisar o texto enviado e gerar feedback construtivo e preciso em português brasileiro.
-Norma acadêmica: APA.
+    prompt_sistema = """Voce e avaliador especialista de monografias de mestrado da Must University.
+Sua funcao e analisar o texto enviado e gerar feedback construtivo e preciso em portugues brasileiro.
+Norma academica: APA.
 
-{contexto_projeto}
+%s
 
-VERIFICAÇÃO DE ADERÊNCIA AO PROJETO (CRITÉRIO OBRIGATÓRIO E PRIORITÁRIO):
-Antes de qualquer outra análise, compare o conteúdo da monografia abaixo com o Projeto de Capstone acima.
-- O tema tratado na monografia é o MESMO tema aprovado no projeto?
-- O problema de pesquisa, os objetivos e a metodologia da monografia estão alinhados com o que foi aprovado no projeto?
-- Se o aluno se afastou do tema, objetivo ou metodologia originalmente aprovados, isso é um problema GRAVE.
-  Gere um comentário específico apontando claramente o desvio, citando o que foi aprovado no projeto e o que está sendo
-  apresentado de diferente na monografia. Marque esse comentário com tipo "desvio_projeto".
-- Se não houver projeto de capstone enviado, ignore esta verificação.
+VERIFICACAO DE ADERENCIA AO PROJETO (CRITERIO OBRIGATORIO E PRIORITARIO):
+Antes de qualquer outra analise, compare o conteudo da monografia abaixo com o Projeto de Capstone acima.
+- O tema tratado na monografia e o MESMO tema aprovado no projeto?
+- O problema de pesquisa, os objetivos e a metodologia da monografia estao alinhados com o que foi aprovado no projeto?
+- Se o aluno se afastou do tema, objetivo ou metodologia originalmente aprovados, isso e um problema GRAVE.
+  Gere um comentario especifico apontando claramente o desvio, citando o que foi aprovado no projeto e o que esta sendo
+  apresentado de diferente na monografia. Marque esse comentario com tipo "desvio_projeto".
+- Se nao houver projeto de capstone enviado, ignore esta verificacao.
 
-CRITÉRIOS OBRIGATÓRIOS POR CAPÍTULO:
-{criterios_aplicaveis}
+CRITERIOS OBRIGATORIOS POR CAPITULO:
+%s
 
-O TEXTO DA MONOGRAFIA ABAIXO ESTÁ NUMERADO POR PARÁGRAFO NO FORMATO "[N] texto".
-Use EXATAMENTE o número N entre colchetes como "paragrafo_indice" na sua resposta. Não invente índices.
+O TEXTO DA MONOGRAFIA ABAIXO ESTA NUMERADO POR PARAGRAFO NO FORMATO "[N] texto".
+Use EXATAMENTE o numero N entre colchetes como "paragrafo_indice" na sua resposta. Nao invente indices.
 
-INSTRUÇÕES IMPORTANTES:
-- Seja específico: aponte o problema exato e sugira como corrigir
+INSTRUCOES IMPORTANTES:
+- Seja especifico: aponte o problema exato e sugira como corrigir
 - Use tom respeitoso e construtivo
-- NÃO comente parágrafos que estão corretos
-- Foque apenas em ausências, erros, melhorias necessárias e desvios em relação ao projeto aprovado
-- O comentário de desvio de projeto (se houver) deve ser o primeiro a aparecer, ancorado no parágrafo mais relevante (geralmente o de contextualização ou problema de pesquisa)
+- NAO comente paragrafos que estao corretos
+- Foque apenas em ausencias, erros, melhorias necessarias e desvios em relacao ao projeto aprovado
+- O comentario de desvio de projeto (se houver) deve ser o primeiro a aparecer, ancorado no paragrafo mais relevante (geralmente o de contextualizacao ou problema de pesquisa)
 
-Retorne APENAS um JSON válido, sem texto adicional, sem markdown:
-[{{"paragrafo_indice": 0, "comentario": "texto do comentário", "tipo": "ausencia|melhoria|desvio_projeto"}}]"""
+Retorne APENAS um JSON valido, sem texto adicional, sem markdown:
+[{"paragrafo_indice": 0, "comentario": "texto do comentario", "tipo": "ausencia|melhoria|desvio_projeto"}]""" % (contexto_projeto, criterios_aplicaveis)
 
     cliente = openai.OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
     resposta = cliente.chat.completions.create(
         model="gpt-4o",
         messages=[
             {"role": "system", "content": prompt_sistema},
-            {"role": "user", "content": f"Monografia de {nome_aluno} (V{numero_versao}), texto numerado por parágrafo:\n\n{texto_versao[:9000]}"}
+            {"role": "user", "content": "Monografia de %s (V%s), texto numerado por paragrafo:\n\n%s" % (nome_aluno, numero_versao, texto_versao[:9000])}
         ],
         temperature=0.3
     )
 
     texto_resposta = resposta.choices[0].message.content
-    logger.info(f"Resposta bruta da IA: {texto_resposta[:2000]}")
+    logger.info("Resposta bruta da IA: %s" % texto_resposta[:2000])
 
     try:
         comentarios_ia = extrair_resposta_json(texto_resposta)
     except Exception as e:
-        logger.error(f"Falha ao fazer parse do JSON da IA: {e}")
-        logger.error(f"Texto recebido: {texto_resposta}")
-        raise ValueError(f"A IA retornou um formato inesperado e o documento não pôde ser comentado: {e}")
+        logger.error("Falha ao fazer parse do JSON da IA: %s" % e)
+        logger.error("Texto recebido: %s" % texto_resposta)
+        raise ValueError("A IA retornou um formato inesperado e o documento nao pode ser comentado: %s" % e)
 
     if not isinstance(comentarios_ia, list):
-        raise ValueError("A resposta da IA não é uma lista de comentários como esperado.")
+        raise ValueError("A resposta da IA nao e uma lista de comentarios como esperado.")
 
-    doc = Document(caminho_versao)
-    # Índice IDÊNTICO ao usado no extrator.py: doc.paragraphs bruto, sem filtrar vazios
-    paragrafos = doc.paragraphs
-
-    inseridos = 0
-    falhas = 0
+    comentarios_por_paragrafo = []
     for item in comentarios_ia:
         idx = item.get("paragrafo_indice")
         comentario = item.get("comentario", "")
@@ -238,27 +318,21 @@ Retorne APENAS um JSON válido, sem texto adicional, sem markdown:
             continue
         if tipo == "aprovado":
             continue
-        if idx < 0 or idx >= len(paragrafos):
-            logger.warning(f"Índice de parágrafo fora do intervalo: {idx} (total: {len(paragrafos)})")
-            falhas += 1
-            continue
-        prefixo = "[DESVIO DO PROJETO]" if tipo == "desvio_projeto" else f"[Rubric AI V{numero_versao}]"
-        try:
-            inserir_comentario(doc, paragrafos[idx], f"{prefixo} {comentario}")
-            inseridos += 1
-        except Exception as e:
-            logger.error(f"Falha ao inserir comentário no parágrafo {idx}: {e}")
-            falhas += 1
-
-    logger.info(f"Comentários inseridos: {inseridos} | Falhas: {falhas} | Total recebido da IA: {len(comentarios_ia)}")
-
-    if inseridos == 0:
-        raise ValueError(
-            f"Nenhum comentário pôde ser inserido no documento. "
-            f"A IA retornou {len(comentarios_ia)} comentário(s), mas {falhas} falharam por índice inválido."
-        )
+        prefixo = "[DESVIO DO PROJETO]" if tipo == "desvio_projeto" else "[Rubric AI V%s]" % numero_versao
+        comentarios_por_paragrafo.append((idx, "%s %s" % (prefixo, comentario), tipo))
 
     with tempfile.NamedTemporaryFile(delete=False, suffix=".docx") as tmp:
         caminho_resultado = tmp.name
-    doc.save(caminho_resultado)
+
+    inseridos, falhas = inserir_comentarios_no_docx(
+        caminho_versao, caminho_resultado, comentarios_por_paragrafo, numero_versao
+    )
+
+    logger.info("Comentarios inseridos: %s | Falhas: %s | Total recebido da IA: %s" % (inseridos, falhas, len(comentarios_ia)))
+
+    if inseridos == 0:
+        raise ValueError(
+            "Nenhum comentario pode ser inserido no documento. A IA retornou %s comentario(s), mas %s falharam por indice invalido." % (len(comentarios_ia), falhas)
+        )
+
     return caminho_resultado
