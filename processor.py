@@ -102,11 +102,20 @@ def extrair_resposta_json(texto_resposta: str):
     return json.loads(texto.strip())
 
 
+def _gerar_iniciais(nome):
+    partes = [p for p in nome.replace(".", "").strip().split() if p]
+    if not partes:
+        return "PR"
+    if len(partes) == 1:
+        return partes[0][:2].upper()
+    return (partes[0][0] + partes[-1][0]).upper()
+
+
 def _qn(tag):
     return "{%s}%s" % (W_NS, tag)
 
 
-def inserir_comentarios_no_docx(caminho_entrada, caminho_saida, comentarios_por_paragrafo, numero_versao):
+def inserir_comentarios_no_docx(caminho_entrada, caminho_saida, comentarios_por_paragrafo, numero_versao, nome_professor="Professor(a)"):
     """
     Insere comentarios nativos do Word manipulando diretamente o pacote ZIP do .docx.
     comentarios_por_paragrafo: lista de tuplas (indice_paragrafo, texto_comentario, tipo)
@@ -149,9 +158,9 @@ def inserir_comentarios_no_docx(caminho_entrada, caminho_saida, comentarios_por_
 
                 comment_el = etree.SubElement(comments_root, _qn("comment"))
                 comment_el.set(_qn("id"), comment_id)
-                comment_el.set(_qn("author"), "Rubric AI")
+                comment_el.set(_qn("author"), nome_professor)
                 comment_el.set(_qn("date"), datetime.now().strftime("%Y-%m-%dT%H:%M:%SZ"))
-                comment_el.set(_qn("initials"), "RA")
+                comment_el.set(_qn("initials"), _gerar_iniciais(nome_professor))
                 p_el = etree.SubElement(comment_el, _qn("p"))
                 r_el = etree.SubElement(p_el, _qn("r"))
                 t_el = etree.SubElement(r_el, _qn("t"))
@@ -240,7 +249,7 @@ def _garantir_content_type_comentarios(pasta_temp):
     tree.write(ct_path, xml_declaration=True, encoding="UTF-8", standalone=True)
 
 
-async def processar_documento(caminho_versao, caminho_projeto, nome_aluno, numero_versao, capitulos):
+async def processar_documento(caminho_versao, caminho_projeto, nome_aluno, numero_versao, capitulos, nome_professor="Professor(a)"):
     texto_versao = extrair_texto_docx(caminho_versao)
 
     contexto_projeto = "NENHUM PROJETO DE CAPSTONE FOI ENVIADO PARA ESTE ALUNO."
@@ -318,14 +327,14 @@ Retorne APENAS um JSON valido, sem texto adicional, sem markdown:
             continue
         if tipo == "aprovado":
             continue
-        prefixo = "[DESVIO DO PROJETO]" if tipo == "desvio_projeto" else "[Rubric AI V%s]" % numero_versao
-        comentarios_por_paragrafo.append((idx, "%s %s" % (prefixo, comentario), tipo))
+        prefixo = "[DESVIO DO PROJETO] " if tipo == "desvio_projeto" else ""
+        comentarios_por_paragrafo.append((idx, "%s%s" % (prefixo, comentario), tipo))
 
     with tempfile.NamedTemporaryFile(delete=False, suffix=".docx") as tmp:
         caminho_resultado = tmp.name
 
     inseridos, falhas = inserir_comentarios_no_docx(
-        caminho_versao, caminho_resultado, comentarios_por_paragrafo, numero_versao
+        caminho_versao, caminho_resultado, comentarios_por_paragrafo, numero_versao, nome_professor
     )
 
     logger.info("Comentarios inseridos: %s | Falhas: %s | Total recebido da IA: %s" % (inseridos, falhas, len(comentarios_ia)))
