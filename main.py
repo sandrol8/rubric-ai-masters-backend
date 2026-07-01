@@ -29,15 +29,17 @@ async def analisar_documento(
     projeto: UploadFile = File(None),
     nome_aluno: str = Form(...),
     numero_versao: int = Form(1),
-    capitulos: str = Form("introducao,metodologia")
+    capitulos: str = Form("introducao,metodologia"),
+    nome_professor: str = Form("Professor(a)")
 ):
+    caminho_versao = None
+    caminho_projeto = None
     try:
         with tempfile.NamedTemporaryFile(delete=False, suffix=".docx") as tmp_versao:
             conteudo_versao = await versao.read()
             tmp_versao.write(conteudo_versao)
             caminho_versao = tmp_versao.name
 
-        caminho_projeto = None
         if projeto:
             with tempfile.NamedTemporaryFile(delete=False, suffix=".docx") as tmp_projeto:
                 conteudo_projeto = await projeto.read()
@@ -49,7 +51,8 @@ async def analisar_documento(
             caminho_projeto=caminho_projeto,
             nome_aluno=nome_aluno,
             numero_versao=numero_versao,
-            capitulos=capitulos.split(",")
+            capitulos=capitulos.split(","),
+            nome_professor=nome_professor
         )
 
         nome_arquivo = f"{nome_aluno.replace(' ', '_')}_V{numero_versao}_comentado.docx"
@@ -63,7 +66,7 @@ async def analisar_documento(
         raise HTTPException(status_code=500, detail=str(e))
 
     finally:
-        if os.path.exists(caminho_versao):
+        if caminho_versao and os.path.exists(caminho_versao):
             os.unlink(caminho_versao)
         if caminho_projeto and os.path.exists(caminho_projeto):
             os.unlink(caminho_projeto)
