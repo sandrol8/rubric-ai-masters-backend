@@ -61,7 +61,7 @@ SE FOR PESQUISA DE CAMPO/EMPIRICA:
 9. APROVACAO PREVIA: Deve ter sido indicada e aprovada no projeto de capstone.
 10. PROCEDIMENTOS ADOTADOS: Indicacao clara e detalhada dos procedimentos de coleta e analise de dados.
 """,
-    "fundamentacao": """
+    "referencial": """
 A Fundamentacao Teorica deve conter OBRIGATORIAMENTE:
 
 1. APRESENTACAO DAS OBRAS: Deve apresentar e discutir as obras encontradas no levantamento bibliografico (producoes dos ultimos 5 ou 10 anos).
