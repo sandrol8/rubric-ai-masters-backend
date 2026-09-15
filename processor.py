@@ -77,18 +77,80 @@ A Fundamentacao Teorica deve conter OBRIGATORIAMENTE:
 6. FREQUENCIA DE CITACOES: Citacoes a cada 2 ou 3 paragrafos no minimo.
 """,
     "resultados": """
-Resultados e Discussao devem conter OBRIGATORIAMENTE:
+O capitulo de RESULTADOS E DISCUSSAO deve vir DEPOIS dos capitulos teoricos e e um capitulo teorico com uma
+peculiaridade: os RESULTADOS apresentam o que foi encontrado no levantamento bibliografico, e a DISCUSSAO
+aproxima os autores em torno do que demonstram ter em comum.
 
-1. APRESENTACAO DOS RESULTADOS: Apresentacao clara dos dados coletados ou das informacoes encontradas na literatura.
+VERIFICACAO DE EXISTENCIA (FACA ISTO PRIMEIRO):
+Verifique se o capitulo de Resultados e Discussao existe no texto enviado.
+Se o texto tiver capitulos teoricos mas NAO tiver um capitulo de Resultados e Discussao, gere UM comentario
+ancorado no ultimo paragrafo do texto apontando a AUSENCIA do capitulo e explicando que ele e obrigatorio
+apos os capitulos teoricos. Marque esse comentario com tipo "ausencia".
 
-2. ANALISE E INTERPRETACAO (DISCUSSAO): O aluno deve interpretar, analisar e explicar o significado dos achados. Aponte se resultados sao apresentados sem discussao critica.
+SE O CAPITULO EXISTIR, verifique OBRIGATORIAMENTE:
 
-3. CONEXAO COM OBJETIVOS E LITERATURA: Os achados devem ser conectados aos objetivos do trabalho e a literatura existente (dialogo com o conhecimento ja produzido). Aponte se falta essa conexao.
+1. APRESENTACAO DOS RESULTADOS: Apresentacao clara dos dados coletados ou das informacoes encontradas na
+   literatura. Aponte se os achados nao estao apresentados de forma clara.
 
-4. QUADRO DE OBRAS RESULTANTES: Se nao foi apresentado na Metodologia, DEVE estar aqui obrigatoriamente. Aponte como erro se estiver ausente em ambos os capitulos.
+2. APROXIMACAO ENTRE AUTORES (NUCLEO DESTE CAPITULO): O aluno deve aproximar os autores em torno do que eles
+   demonstram ter em comum, mostrando AFINIDADES e tambem DISTANCIAMENTOS: no que concordam e no que
+   eventualmente discordam. Aponte como erro grave se os autores forem apenas listados um apos o outro, sem
+   essa aproximacao e sem confronto entre eles.
 
-5. FREQUENCIA DE CITACOES: Citacoes a cada 2 ou 3 paragrafos no minimo.
+3. ANALISE E INTERPRETACAO (DISCUSSAO): O aluno deve interpretar, analisar e explicar o SIGNIFICADO dos
+   achados, respondendo o "o que" e o "por que" da pesquisa. Aponte se os resultados sao apresentados sem
+   discussao critica.
+
+4. CONEXAO COM OBJETIVOS E COM O PROBLEMA: Os achados devem ser conectados aos objetivos do trabalho, ao
+   problema de pesquisa e a literatura existente, construindo dialogo com o conhecimento ja produzido.
+   Aponte se falta essa conexao.
+
+5. SENTIDO DOS DADOS: Numeros, quadros, graficos ou informacoes qualitativas devem ganhar sentido, e nao
+   apenas ser exibidos. Aponte dados apresentados sem leitura.
+
+6. QUADRO DE OBRAS RESULTANTES: Se nao foi apresentado na Metodologia, DEVE estar aqui obrigatoriamente.
+   Aponte como erro se estiver ausente em ambos os capitulos.
+
+7. FREQUENCIA DE CITACOES: Citacoes a cada 2 ou 3 paragrafos no minimo.
+""",
+    "conclusao": """
+As CONSIDERACOES FINAIS devem ser claras, breves, objetivas e baseadas nos achados do estudo, devem retomar o
+objetivo geral do texto e NAO devem conter informacoes novas.
+
+VERIFICACAO DE EXISTENCIA (FACA ISTO PRIMEIRO):
+Verifique se o capitulo de Consideracoes Finais/Conclusao existe no texto enviado. Se nao existir, gere UM
+comentario ancorado no ultimo paragrafo do texto apontando a AUSENCIA do capitulo. Marque com tipo "ausencia".
+
+SE O CAPITULO EXISTIR, verifique OBRIGATORIAMENTE:
+
+1. RETOMADA DOS OBJETIVOS E DO PROBLEMA: Deve iniciar recuperando os objetivos de pesquisa (geral e
+   especificos) e o problema de pesquisa. Aponte se essa retomada estiver ausente.
+
+2. CONCLUSOES CLARAS, BREVES E OBJETIVAS: As conclusoes devem ser claras, breves, objetivas e baseadas nos
+   achados do estudo. Aponte conclusoes vagas, genericas ou sem lastro nos achados.
+
+3. AUSENCIA DE CITACOES: Esta secao NAO deve conter citacoes. E o momento de o aluno mostrar-se como
+   pesquisador e apresentar as consideracoes do autor frente ao tema pesquisado. Aponte como erro qualquer
+   citacao de autor nesta secao.
+
+4. RESPOSTA AO OBJETIVO GERAL: Deve responder ao objetivo geral do trabalho, que foi o foco da pesquisa.
+   Aponte como erro grave se o objetivo geral nao for respondido.
+
+5. ADERENCIA A DISCUSSAO DESENVOLVIDA: Deve abordar os temas pertinentes a discussao desenvolvida ao longo da
+   construcao do trabalho, com o aprofundamento esperado. Aponte se o fechamento for raso.
+
+6. NENHUMA INFORMACAO NOVA: Nao pode trazer tema, dado ou argumento que nao tenha sido desenvolvido no corpo
+   do trabalho. Aponte como erro qualquer informacao nova.
 """
+}
+
+# Nomes que a tela envia e que apontam para uma regra ja existente acima.
+# Resultados e Discussao sao avaliados como um capitulo unico, conforme a norma da Must.
+ALIASES_CAPITULOS = {
+    "discussao": "resultados",
+    "fundamentacao": "referencial",
+    "consideracoes": "conclusao",
+    "consideracoes_finais": "conclusao",
 }
 
 
@@ -258,11 +320,20 @@ async def processar_documento(caminho_versao, caminho_projeto, nome_aluno, numer
         contexto_projeto = "PROJETO DE CAPSTONE APROVADO (documento de referencia oficial do tema, problema de pesquisa, objetivos e metodologia aprovados para este aluno):\n%s" % texto_projeto[:20000]
 
     criterios_aplicaveis = ""
+    capitulos_incluidos = []
     for cap in capitulos:
         cap = cap.strip().lower()
-        if cap in CRITERIOS:
-            criterios_aplicaveis += "\n=== %s ===\n" % cap.upper()
-            criterios_aplicaveis += CRITERIOS[cap]
+        cap = ALIASES_CAPITULOS.get(cap, cap)
+        if cap not in CRITERIOS:
+            logger.warning("Capitulo sem criterios cadastrados, ignorado: %s" % cap)
+            continue
+        if cap in capitulos_incluidos:
+            continue
+        capitulos_incluidos.append(cap)
+        criterios_aplicaveis += "\n=== %s ===\n" % cap.upper()
+        criterios_aplicaveis += CRITERIOS[cap]
+
+    logger.info("Capitulos solicitados: %s | Criterios aplicados: %s" % (capitulos, capitulos_incluidos))
 
     prompt_sistema = """Voce e avaliador especialista de monografias de mestrado da Must University.
 Sua funcao e analisar o texto enviado e gerar feedback construtivo e preciso em portugues brasileiro.
@@ -290,6 +361,8 @@ INSTRUCOES IMPORTANTES:
 - Use tom respeitoso e construtivo
 - NAO comente paragrafos que estao corretos
 - Foque apenas em ausencias, erros, melhorias necessarias e desvios em relacao ao projeto aprovado
+- Se um capitulo listado nos criterios acima NAO existir no texto enviado, gere UM comentario apontando a ausencia
+  desse capitulo, ancorado no ultimo paragrafo do texto, com tipo "ausencia"
 - O comentario de desvio de projeto (se houver) deve ser o primeiro a aparecer, ancorado no paragrafo mais relevante (geralmente o de contextualizacao ou problema de pesquisa)
 
 Retorne APENAS um JSON valido, sem texto adicional, sem markdown:
