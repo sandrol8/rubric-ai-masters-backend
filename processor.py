@@ -255,7 +255,7 @@ async def processar_documento(caminho_versao, caminho_projeto, nome_aluno, numer
     contexto_projeto = "NENHUM PROJETO DE CAPSTONE FOI ENVIADO PARA ESTE ALUNO."
     if caminho_projeto:
         texto_projeto = extrair_texto_docx(caminho_projeto)
-        contexto_projeto = "PROJETO DE CAPSTONE APROVADO (documento de referencia oficial do tema, problema de pesquisa, objetivos e metodologia aprovados para este aluno):\n%s" % texto_projeto[:4000]
+        contexto_projeto = "PROJETO DE CAPSTONE APROVADO (documento de referencia oficial do tema, problema de pesquisa, objetivos e metodologia aprovados para este aluno):\n%s" % texto_projeto[:20000]
 
     criterios_aplicaveis = ""
     for cap in capitulos:
@@ -300,7 +300,7 @@ Retorne APENAS um JSON valido, sem texto adicional, sem markdown:
         model="gpt-4o",
         messages=[
             {"role": "system", "content": prompt_sistema},
-            {"role": "user", "content": "Monografia de %s (V%s), texto numerado por paragrafo:\n\n%s" % (nome_aluno, numero_versao, texto_versao[:9000])}
+            {"role": "user", "content": "Monografia de %s (V%s), texto numerado por paragrafo:\n\n%s" % (nome_aluno, numero_versao, texto_versao[:120000])}
         ],
         temperature=0.3
     )
