@@ -7,7 +7,7 @@ import zipfile
 from lxml import etree
 from datetime import datetime
 import openai
-from extrator import extrair_texto_docx
+from extrator import extrair_texto_docx, extrair_texto_docx_completo
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("rubric-ai-masters")
@@ -316,7 +316,7 @@ async def processar_documento(caminho_versao, caminho_projeto, nome_aluno, numer
 
     contexto_projeto = "NENHUM PROJETO DE CAPSTONE FOI ENVIADO PARA ESTE ALUNO."
     if caminho_projeto:
-        texto_projeto = extrair_texto_docx(caminho_projeto)
+        texto_projeto = extrair_texto_docx_completo(caminho_projeto)
         contexto_projeto = "PROJETO DE CAPSTONE APROVADO (documento de referencia oficial do tema, problema de pesquisa, objetivos e metodologia aprovados para este aluno):\n%s" % texto_projeto[:20000]
 
     criterios_aplicaveis = ""
