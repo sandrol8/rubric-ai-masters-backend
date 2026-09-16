@@ -23,6 +23,9 @@ NSMAP = {"w": W_NS}
 
 MODELO = "gpt-4o"
 TAMANHO_MINIMO_COMENTARIO = 40
+MAX_COMENTARIOS_POR_BLOCO = 8
+LIMIAR_REPETICAO = 0.32
+MAX_POR_TEMA = 2
 
 CRITERIOS = {
     "introducao": """
@@ -74,6 +77,12 @@ Voce esta avaliando UM capitulo teorico. Verifique OBRIGATORIAMENTE, dentro dest
 9. FOCO E DELIMITACAO: aponte conteudo periferico que nao serve aos objetivos.
 10. COESAO, COERENCIA E ORTOGRAFIA: aponte problemas de encadeamento entre paragrafos e erros de escrita.
 11. NORMA APA nas chamadas de autor dentro do texto.
+
+REGRA DE AGRUPAMENTO, OBRIGATORIA:
+Nao repita a mesma observacao em varios paragrafos. Se um problema se repete ao longo do capitulo (por
+exemplo, varias citacoes antigas, ou varios trechos sem apoio teorico), gere UM UNICO comentario que trate
+do problema no capitulo inteiro, citando dois ou tres exemplos dentro dele, ancorado no primeiro paragrafo
+onde o problema aparece. Gere no maximo 6 comentarios neste capitulo, cada um sobre um criterio diferente.
 """,
     "referencial_secao": """
 Voce esta avaliando o CONJUNTO dos capitulos teoricos, nao o conteudo de um capitulo isolado.
@@ -124,16 +133,30 @@ Verifique OBRIGATORIAMENTE:
 CRITERIO_ADERENCIA = """
 Voce esta fazendo UMA unica verificacao: a aderencia da monografia ao Projeto de Capstone aprovado.
 
-Compare o texto recebido com o projeto aprovado e verifique:
-- O TEMA tratado e o mesmo tema aprovado, com o mesmo recorte? Um recorte que existe no projeto e sumiu na
-  monografia (por exemplo, uma disciplina, um publico ou um contexto especifico) e desvio grave.
-- O PROBLEMA DE PESQUISA e o mesmo aprovado?
-- Os OBJETIVOS geral e especificos correspondem aos aprovados?
-- A METODOLOGIA e a aprovada?
+TRABALHE NESTA ORDEM, obrigatoriamente:
 
-Para cada desvio encontrado, gere um comentario citando textualmente o que foi aprovado no projeto e o que
-esta escrito na monografia. Use o tipo "desvio_projeto".
-Se nao houver desvio, retorne uma lista vazia.
+PASSO 1. Leia o PROJETO APROVADO e extraia, campo a campo:
+   - TEMA aprovado, com todos os recortes que ele contem (area, disciplina, publico, etapa de ensino, contexto)
+   - PROBLEMA DE PESQUISA aprovado, na integra
+   - OBJETIVO GERAL aprovado
+   - OBJETIVOS ESPECIFICOS aprovados
+   - METODOLOGIA aprovada
+
+PASSO 2. Leia o TITULO, o RESUMO e o trecho da MONOGRAFIA e extraia os mesmos cinco campos.
+
+PASSO 3. Compare CAMPO A CAMPO, um de cada vez. Para cada campo, pergunte:
+   - Todos os termos e recortes que existem no projeto continuam presentes na monografia?
+   - REGRA CENTRAL: um recorte que existe no projeto e NAO aparece na monografia e DESVIO GRAVE, mesmo que o
+     resto do texto esteja coerente. Exemplos de forma: se o projeto delimita uma disciplina, uma etapa de
+     ensino, uma faixa etaria, uma regiao ou um publico especifico, e a monografia trata do tema sem essa
+     delimitacao, isso e desvio e deve ser apontado.
+   - A ausencia de um recorte e tao grave quanto a troca de tema. Nao conclua que houve apenas "ampliacao do
+     escopo": trate como desvio.
+
+PASSO 4. Para cada desvio, gere um comentario que cite TEXTUALMENTE, entre aspas, o que foi aprovado no
+projeto e o que esta escrito na monografia, nesta ordem. Use o tipo "desvio_projeto".
+
+Se, e somente se, os cinco campos corresponderem integralmente, retorne uma lista vazia.
 Gere no maximo 4 comentarios.
 """
 
@@ -213,6 +236,75 @@ def _linhas_numeradas(texto_numerado):
         if m:
             saida.append((int(m.group(1)), m.group(2).strip()))
     return saida
+
+
+def _pre_texto(texto_numerado, limite=40):
+    """Devolve as linhas antes do Sumario: capa, titulo e resumo."""
+    linhas = _linhas_numeradas(texto_numerado)
+    corte = len(linhas)
+    for pos, (_, texto) in enumerate(linhas):
+        if _normalizar(texto) in ("sumário", "sumario"):
+            corte = pos
+            break
+    return "\n".join("[%d] %s" % (idx, t) for idx, t in linhas[:corte][:limite])
+
+
+FAMILIAS_TEMA = {
+    "atualidade": ["antig", "recent", "atuali", "contemporane", "classic", "desatualiz"],
+    "citacao_direta": ["citacao direta", "aspas", "indicacao de pagina"],
+    "fundamentacao": ["sem apoio", "fundamenta", "respaldo", "sem citacao", "sem fonte",
+                      "nao cita", "sem referencia"],
+    "dialogo": ["dialogo", "conversam", "isolad", "confronto", "concordam", "divergem"],
+    "voz_autoral": ["voz do aluno", "posicionamento critico", "autoral", "colagem", "voz autoral"],
+    "norma_apa": ["norma apa", "formatacao apa", "padrao apa"],
+    "coesao": ["coesao", "coerencia", "ortograf", "encadeamento", "transicao"],
+    "confiabilidade": ["blog", "sem autoria", "site generico", "fonte nao academica"],
+}
+
+
+def _familia(texto):
+    t = _sem_acento(texto.lower())
+    for nome, marcas in FAMILIAS_TEMA.items():
+        if any(m in t for m in marcas):
+            return nome
+    return None
+
+
+def _assinatura(texto):
+    palavras = re.findall(r"[a-z]{5,}", _sem_acento(texto.lower()))
+    return set(palavras)
+
+
+def _limitar_repeticao(validos, rotulo):
+    """Descarta comentario muito parecido com outro ja aceito no mesmo bloco."""
+    aceitos = []
+    assinaturas = []
+    por_tema = {}
+    for idx, texto, tipo in validos:
+        if len(aceitos) >= MAX_COMENTARIOS_POR_BLOCO:
+            logger.info("[%s] teto de %s comentarios atingido, restante descartado"
+                        % (rotulo, MAX_COMENTARIOS_POR_BLOCO))
+            break
+        tema = _familia(texto)
+        if tema and por_tema.get(tema, 0) >= MAX_POR_TEMA:
+            logger.info("[%s] tema %s ja tem %s comentarios, descartado: %r"
+                        % (rotulo, tema, MAX_POR_TEMA, texto[:60]))
+            continue
+        atual = _assinatura(texto)
+        repetido = False
+        for anterior in assinaturas:
+            uniao = atual | anterior
+            if uniao and len(atual & anterior) / float(len(uniao)) >= LIMIAR_REPETICAO:
+                repetido = True
+                break
+        if repetido:
+            logger.info("[%s] comentario repetido descartado: %r" % (rotulo, texto[:60]))
+            continue
+        assinaturas.append(atual)
+        if tema:
+            por_tema[tema] = por_tema.get(tema, 0) + 1
+        aceitos.append((idx, texto, tipo))
+    return aceitos
 
 
 def tem_placeholder(texto):
@@ -327,9 +419,13 @@ Se nao houver nada a apontar, retorne [].
 
 
 def _chamar_ia(cliente, instrucao_criterios, texto_usuario, rotulo):
+    hoje = datetime.now()
     prompt_sistema = (
         "Voce e avaliador especialista de monografias de mestrado da Must University.\n"
-        "Norma academica: APA.\n\n"
+        "Norma academica: APA.\n"
+        "A data de hoje e %s. O ano corrente e %d. Considere \"ultimos 5 anos\" como %d a %d. "
+        "NUNCA afirme que um ano igual ou anterior a %d ainda nao ocorreu.\n\n"
+        % (hoje.strftime("%d/%m/%Y"), hoje.year, hoje.year - 5, hoje.year, hoje.year)
         + instrucao_criterios
         + "\n"
         + INSTRUCOES_COMUNS
@@ -540,9 +636,11 @@ async def processar_documento(caminho_versao, caminho_projeto, nome_aluno, numer
         texto_projeto = extrair_texto_docx_completo(caminho_projeto)
         blocos_base = [b for b in blocos if b["chave"] in ("introducao", "metodologia")]
         trecho_base = "\n".join(b["texto"] for b in blocos_base) or texto_versao[:20000]
+        capa = _pre_texto(texto_versao)
         usuario = ("PROJETO DE CAPSTONE APROVADO:\n%s\n\n"
-                   "TRECHO DA MONOGRAFIA DE %s (V%s):\n%s"
-                   % (texto_projeto[:20000], nome_aluno, numero_versao, trecho_base))
+                   "TITULO E RESUMO DA MONOGRAFIA:\n%s\n\n"
+                   "INTRODUCAO E METODOLOGIA DA MONOGRAFIA DE %s (V%s):\n%s"
+                   % (texto_projeto[:20000], capa, nome_aluno, numero_versao, trecho_base))
         itens = _chamar_ia(cliente, CRITERIO_ADERENCIA, usuario, "aderencia")
         validos = _validar(itens, "aderencia")
         for idx, texto, _tipo in validos:
@@ -581,7 +679,8 @@ async def processar_documento(caminho_versao, caminho_projeto, nome_aluno, numer
             usuario = ("Capitulo: %s\nMonografia de %s (V%s)\n\n%s"
                        % (bloco["titulo"], nome_aluno, numero_versao, bloco["texto"]))
             itens = _chamar_ia(cliente, criterio, usuario, rotulo)
-            validos = _validar(itens, rotulo, faixa=(bloco["idx_inicio"], bloco["idx_fim"]))
+            validos = _limitar_repeticao(
+                _validar(itens, rotulo, faixa=(bloco["idx_inicio"], bloco["idx_fim"])), rotulo)
             comentarios.extend(validos)
             logger.info("[%s] %s comentario(s) em %s paragrafos"
                         % (rotulo, len(validos), bloco["paragrafos"]))
