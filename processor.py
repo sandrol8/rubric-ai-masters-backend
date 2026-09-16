@@ -1,4 +1,6 @@
 import os
+import re
+import unicodedata
 import json
 import logging
 import shutil
@@ -19,144 +21,269 @@ CT_NS = "http://schemas.openxmlformats.org/package/2006/content-types"
 RELS_NS = "http://schemas.openxmlformats.org/package/2006/relationships"
 NSMAP = {"w": W_NS}
 
+MODELO = "gpt-4o"
+TAMANHO_MINIMO_COMENTARIO = 40
+
 CRITERIOS = {
     "introducao": """
 A Introducao deve conter OBRIGATORIAMENTE todos os elementos abaixo. Aponte como erro/melhoria qualquer ausencia:
 
 1. CONTEXTUALIZACAO DO TEMA: O aluno apresenta o tema escolhido com relevancia clara, preferencialmente com fundamentacao teorica (citacoes). Aponte se falta fundamentacao na contextualizacao.
-
-2. PROBLEMA DE PESQUISA: Deve derivar da contextualizacao e OBRIGATORIAMENTE estar em forma de pergunta. Aponte como erro grave se nao for uma pergunta.
-
+2. PROBLEMA DE PESQUISA: Deve derivar da contextualizacao e OBRIGATORIAMENTE estar em forma de pergunta. Antes de apontar erro aqui, verifique se ha ponto de interrogacao no trecho. Se houver, o criterio esta atendido.
 3. OBJETIVO GERAL: Deve derivar diretamente do problema de pesquisa.
-
-4. OBJETIVOS ESPECIFICOS: Maximo de 3 ou 4. Aponte como erro se houver mais de 4.
-
+4. OBJETIVOS ESPECIFICOS: Maximo de 3 ou 4. Antes de apontar excesso, CONTE os objetivos listados e cite a contagem no comentario.
 5. JUSTIFICATIVA: Deve apresentar claramente por que a pesquisa e relevante. Aponte se estiver ausente ou vaga.
-
 6. INDICACAO METODOLOGICA: Deve indicar brevemente qual sera a metodologia, sem detalhar.
-
-7. PARAGRAFO DE SINTESE (ESTRUTURA): O ultimo paragrafo deve descrever como o trabalho esta organizado (ex: "O capitulo 2 aborda..."). Aponte como erro se estiver ausente.
-
-8. FREQUENCIA DE CITACOES: O texto deve conter citacoes/referencias a cada 2 ou 3 paragrafos no minimo. Aponte trechos longos sem citacao.
+7. PARAGRAFO DE SINTESE (ESTRUTURA): O ultimo paragrafo deve descrever como o trabalho esta organizado (ex: "O capitulo 2 aborda...").
+8. FREQUENCIA DE CITACOES: O texto deve conter citacoes a cada 2 ou 3 paragrafos no minimo. Aponte trechos longos sem citacao.
 """,
     "metodologia": """
 A Metodologia deve conter OBRIGATORIAMENTE todos os elementos abaixo:
 
 REGRAS GERAIS:
 1. DESCRICAO DA METODOLOGIA: O tipo de pesquisa (bibliografica, de campo, etc.) deve estar claramente descrito.
-2. FUNDAMENTACAO DA ESCOLHA: Minimo de 2 autores diferentes de metodologia cientifica fundamentando a escolha. Aponte como erro grave se houver menos de 2 autores.
+2. FUNDAMENTACAO DA ESCOLHA: Minimo de 2 autores diferentes de metodologia cientifica. Antes de apontar falta, LISTE os autores de metodologia que encontrou no trecho.
+3. PERIODO DE REALIZACAO: Indicar meses e ano cursados na disciplina de capstone.
+4. PRINCIPIOS ETICOS: Paragrafo informando que o projeto foi aprovado pelo Comite de Etica institucional.
 
 SE FOR PESQUISA BIBLIOGRAFICA (verificar todos os itens):
-3. DESCRITORES/PALAVRAS-CHAVE: Quais termos foram usados na busca.
-4. PERIODO DELIMITADO: Recorte temporal definido (normalmente ultimos 5 ou 10 anos).
-5. PLATAFORMAS DE BUSCA: Indicacao clara de onde a busca foi feita (ex: SciELO, Periodicos CAPES).
-6. CRITERIOS DE INCLUSAO E EXCLUSAO: Quais regras definiram o que entra e o que sai da pesquisa.
-7. DESCRICAO QUANTITATIVA DO FUNIL:
-   - Quantos materiais vieram inicialmente com as palavras-chave
-   - Quantos foram excluidos (ex: leitura de titulos/resumos)
-   - Quantos trabalhos restaram para analise final
-8. QUADRO DE OBRAS RESULTANTES: Quadro apresentando as obras finais (pode estar aqui ou nos Resultados).
+5. DESCRITORES/PALAVRAS-CHAVE usados na busca.
+6. RECORTE TEMPORAL definido (ultimos 5 anos).
+7. PLATAFORMAS DE BUSCA (ex: SciELO, Periodicos CAPES, BDTD, Google Academico).
+8. IDIOMAS consultados (portugues, espanhol, ingles).
+9. CRITERIOS DE INCLUSAO E EXCLUSAO das obras.
+10. DESCRICAO QUANTITATIVA DO FUNIL: quantos materiais vieram da busca, quantos foram excluidos e quantos restaram.
+11. QUADRO DE OBRAS RESULTANTES (pode estar aqui ou nos Resultados).
+12. ESTRATEGIA DE ANALISE: leitura critica, sistematizacao e categorizacao.
+13. LIMITACOES: indicar que e pesquisa teorica, nao empirica.
 
 SE FOR PESQUISA DE CAMPO/EMPIRICA:
-9. APROVACAO PREVIA: Deve ter sido indicada e aprovada no projeto de capstone.
-10. PROCEDIMENTOS ADOTADOS: Indicacao clara e detalhada dos procedimentos de coleta e analise de dados.
+14. APROVACAO PREVIA no projeto de capstone e procedimentos de coleta e analise descritos.
 """,
-    "referencial": """
-A Fundamentacao Teorica deve conter OBRIGATORIAMENTE:
+    "referencial_capitulo": """
+Voce esta avaliando UM capitulo teorico. Verifique OBRIGATORIAMENTE, dentro deste capitulo:
 
-1. APRESENTACAO DAS OBRAS: Deve apresentar e discutir as obras encontradas no levantamento bibliografico (producoes dos ultimos 5 ou 10 anos).
+1. CITACAO DIRETA: ha pelo menos uma citacao direta, com aspas e indicacao de pagina? Aponte se nao houver.
+2. CITACAO INDIRETA: ha parafrase com credito ao autor, no formato (Autor, ano)? Aponte se o capitulo so reproduzir ideias sem credito.
+3. FUNDAMENTACAO DAS AFIRMACOES: toda afirmacao relevante tem apoio teorico. Aponte trechos longos de opiniao sem respaldo.
+4. FONTES RECENTES: predominam obras dos ultimos 5 anos, salvo classicos reconhecidos. Aponte se a bibliografia do capitulo for majoritariamente antiga.
+5. CONFIABILIDADE DA FONTE: as fontes sao academicas (periodicos, livros, teses). Aponte uso de blog, site generico ou fonte sem autoria.
+6. DIALOGO ENTRE AUTORES: os autores conversam entre si, com concordancias e divergencias. Aponte como erro a sequencia de citacoes isoladas, um autor por paragrafo, sem conexao.
+7. VOZ DO ALUNO E POSICIONAMENTO CRITICO: ha costura autoral entre os conceitos, explicando como a teoria se aplica ao estudo. Aponte capitulo que seja apenas colagem de resumos.
+8. ALINHAMENTO COM OS OBJETIVOS: o conteudo contribui para responder ao problema de pesquisa.
+9. FOCO E DELIMITACAO: aponte conteudo periferico que nao serve aos objetivos.
+10. COESAO, COERENCIA E ORTOGRAFIA: aponte problemas de encadeamento entre paragrafos e erros de escrita.
+11. NORMA APA nas chamadas de autor dentro do texto.
+""",
+    "referencial_secao": """
+Voce esta avaliando o CONJUNTO dos capitulos teoricos, nao o conteudo de um capitulo isolado.
+Voce recebera a lista dos capitulos, com titulo e tamanho de cada um.
 
-2. ALINHAMENTO COM OBJETIVOS: O conteudo deve contribuir para responder ao problema de pesquisa e atingir os objetivos definidos na introducao.
+Verifique OBRIGATORIAMENTE:
 
-3. DIALOGO ENTRE AUTORES: Os autores devem dialogar entre si. Aponte como erro citacoes isoladas sem conexao entre elas.
+1. LOGICA DA DIVISAO: a progressao entre os capitulos tem fio condutor claro (do geral ao especifico, do historico ao atual, ou outro criterio visivel). Aponte divisao arbitraria.
+2. TRANSICAO ENTRE CAPITULOS: a sequencia dos titulos sugere encadeamento, nao capitulos soltos.
+3. EQUILIBRIO DE EXTENSAO: aponte desproporcao grande entre capitulos, por exemplo um com o triplo do tamanho de outro.
+4. QUANTIDADE: o referencial deve ter entre 2 e 5 capitulos. Aponte se fugir disso.
+5. COBERTURA TEORICA: os titulos cobrem os temas exigidos pelos objetivos da pesquisa.
 
-4. ATUALIDADE DA BIBLIOGRAFIA: Aponte uso de bibliografia muito antiga (salvo obras classicas reconhecidas).
-
-5. FIDELIDADE AO TEMA: Aponte se o conteudo se afasta do tema proposto nos objetivos.
-
-6. FREQUENCIA DE CITACOES: Citacoes a cada 2 ou 3 paragrafos no minimo.
+Gere no maximo 3 comentarios, ancorados no paragrafo do titulo do capitulo a que se referem.
 """,
     "resultados": """
-O capitulo de RESULTADOS E DISCUSSAO deve vir DEPOIS dos capitulos teoricos e e um capitulo teorico com uma
-peculiaridade: os RESULTADOS apresentam o que foi encontrado no levantamento bibliografico, e a DISCUSSAO
-aproxima os autores em torno do que demonstram ter em comum.
+O capitulo de RESULTADOS E DISCUSSAO apresenta o que foi encontrado no levantamento bibliografico e aproxima
+os autores em torno do que demonstram ter em comum.
 
-VERIFICACAO DE EXISTENCIA (FACA ISTO PRIMEIRO):
-Verifique se o capitulo de Resultados e Discussao existe no texto enviado.
-Se o texto tiver capitulos teoricos mas NAO tiver um capitulo de Resultados e Discussao, gere UM comentario
-ancorado no ultimo paragrafo do texto apontando a AUSENCIA do capitulo e explicando que ele e obrigatorio
-apos os capitulos teoricos. Marque esse comentario com tipo "ausencia".
+Verifique OBRIGATORIAMENTE:
 
-SE O CAPITULO EXISTIR, verifique OBRIGATORIAMENTE:
-
-1. APRESENTACAO DOS RESULTADOS: Apresentacao clara dos dados coletados ou das informacoes encontradas na
-   literatura. Aponte se os achados nao estao apresentados de forma clara.
-
-2. APROXIMACAO ENTRE AUTORES (NUCLEO DESTE CAPITULO): O aluno deve aproximar os autores em torno do que eles
-   demonstram ter em comum, mostrando AFINIDADES e tambem DISTANCIAMENTOS: no que concordam e no que
-   eventualmente discordam. Aponte como erro grave se os autores forem apenas listados um apos o outro, sem
-   essa aproximacao e sem confronto entre eles.
-
-3. ANALISE E INTERPRETACAO (DISCUSSAO): O aluno deve interpretar, analisar e explicar o SIGNIFICADO dos
-   achados, respondendo o "o que" e o "por que" da pesquisa. Aponte se os resultados sao apresentados sem
-   discussao critica.
-
-4. CONEXAO COM OBJETIVOS E COM O PROBLEMA: Os achados devem ser conectados aos objetivos do trabalho, ao
-   problema de pesquisa e a literatura existente, construindo dialogo com o conhecimento ja produzido.
-   Aponte se falta essa conexao.
-
-5. SENTIDO DOS DADOS: Numeros, quadros, graficos ou informacoes qualitativas devem ganhar sentido, e nao
-   apenas ser exibidos. Aponte dados apresentados sem leitura.
-
-6. QUADRO DE OBRAS RESULTANTES: Se nao foi apresentado na Metodologia, DEVE estar aqui obrigatoriamente.
-   Aponte como erro se estiver ausente em ambos os capitulos.
-
-7. FREQUENCIA DE CITACOES: Citacoes a cada 2 ou 3 paragrafos no minimo.
+1. APRESENTACAO DOS RESULTADOS: achados apresentados de forma clara.
+2. APROXIMACAO ENTRE AUTORES: afinidades e distanciamentos, no que concordam e no que discordam. Aponte como erro grave a simples listagem de autores.
+3. ANALISE E INTERPRETACAO: significado dos achados, o "o que" e o "por que".
+4. CONEXAO COM OBJETIVOS E COM O PROBLEMA de pesquisa.
+5. SENTIDO DOS DADOS: numeros e quadros devem ganhar leitura, nao apenas ser exibidos.
+6. QUADRO DE OBRAS RESULTANTES: se nao foi apresentado na Metodologia, deve estar aqui.
+7. FREQUENCIA DE CITACOES: citacoes a cada 2 ou 3 paragrafos no minimo.
 """,
     "conclusao": """
-As CONSIDERACOES FINAIS devem ser claras, breves, objetivas e baseadas nos achados do estudo, devem retomar o
-objetivo geral do texto e NAO devem conter informacoes novas.
+As CONSIDERACOES FINAIS devem ser claras, breves, objetivas e baseadas nos achados, e NAO devem conter
+informacoes novas.
 
-VERIFICACAO DE EXISTENCIA (FACA ISTO PRIMEIRO):
-Verifique se o capitulo de Consideracoes Finais/Conclusao existe no texto enviado. Se nao existir, gere UM
-comentario ancorado no ultimo paragrafo do texto apontando a AUSENCIA do capitulo. Marque com tipo "ausencia".
+Verifique OBRIGATORIAMENTE:
 
-SE O CAPITULO EXISTIR, verifique OBRIGATORIAMENTE:
-
-1. RETOMADA DOS OBJETIVOS E DO PROBLEMA: Deve iniciar recuperando os objetivos de pesquisa (geral e
-   especificos) e o problema de pesquisa. Aponte se essa retomada estiver ausente.
-
-2. CONCLUSOES CLARAS, BREVES E OBJETIVAS: As conclusoes devem ser claras, breves, objetivas e baseadas nos
-   achados do estudo. Aponte conclusoes vagas, genericas ou sem lastro nos achados.
-
-3. AUSENCIA DE CITACOES: Esta secao NAO deve conter citacoes. E o momento de o aluno mostrar-se como
-   pesquisador e apresentar as consideracoes do autor frente ao tema pesquisado. Aponte como erro qualquer
-   citacao de autor nesta secao.
-
-4. RESPOSTA AO OBJETIVO GERAL: Deve responder ao objetivo geral do trabalho, que foi o foco da pesquisa.
-   Aponte como erro grave se o objetivo geral nao for respondido.
-
-5. ADERENCIA A DISCUSSAO DESENVOLVIDA: Deve abordar os temas pertinentes a discussao desenvolvida ao longo da
-   construcao do trabalho, com o aprofundamento esperado. Aponte se o fechamento for raso.
-
-6. NENHUMA INFORMACAO NOVA: Nao pode trazer tema, dado ou argumento que nao tenha sido desenvolvido no corpo
-   do trabalho. Aponte como erro qualquer informacao nova.
-"""
+1. RETOMADA DO TEMA, DO PROBLEMA E DOS OBJETIVOS de pesquisa.
+2. ALCANCE DE CADA OBJETIVO: evidenciar se cada objetivo especifico foi atingido.
+3. RESULTADOS OBTIDOS: destacar e discutir os achados do estudo.
+4. IMPLICACOES dos resultados e contribuicao para o campo de estudo.
+5. LIMITACOES da pesquisa e aspectos que podem ter influenciado os resultados.
+6. CAUTELA NA GENERALIZACAO dos achados.
+7. SUGESTOES DE PESQUISAS FUTURAS a partir das lacunas identificadas.
+8. AUSENCIA DE CITACOES: esta secao nao deve conter citacoes de autores. Aponte como erro qualquer citacao.
+9. NENHUMA INFORMACAO NOVA que nao tenha sido desenvolvida no corpo do trabalho.
+""",
 }
 
-# Nomes que a tela envia e que apontam para uma regra ja existente acima.
-# Resultados e Discussao sao avaliados como um capitulo unico, conforme a norma da Must.
+CRITERIO_ADERENCIA = """
+Voce esta fazendo UMA unica verificacao: a aderencia da monografia ao Projeto de Capstone aprovado.
+
+Compare o texto recebido com o projeto aprovado e verifique:
+- O TEMA tratado e o mesmo tema aprovado, com o mesmo recorte? Um recorte que existe no projeto e sumiu na
+  monografia (por exemplo, uma disciplina, um publico ou um contexto especifico) e desvio grave.
+- O PROBLEMA DE PESQUISA e o mesmo aprovado?
+- Os OBJETIVOS geral e especificos correspondem aos aprovados?
+- A METODOLOGIA e a aprovada?
+
+Para cada desvio encontrado, gere um comentario citando textualmente o que foi aprovado no projeto e o que
+esta escrito na monografia. Use o tipo "desvio_projeto".
+Se nao houver desvio, retorne uma lista vazia.
+Gere no maximo 4 comentarios.
+"""
+
+# Nomes que a tela envia e que apontam para um bloco de criterios.
 ALIASES_CAPITULOS = {
     "discussao": "resultados",
+    "resultados e discussao": "resultados",
     "fundamentacao": "referencial",
+    "fundamentacao teorica": "referencial",
+    "referencial teorico": "referencial",
     "consideracoes": "conclusao",
-    "consideracoes_finais": "conclusao",
+    "consideracoes finais": "conclusao",
+    "conclusao": "conclusao",
+    "introducao": "introducao",
+    "metodologia": "metodologia",
 }
 
+NOMES_SECAO = {
+    "introducao": ["introdução", "introducao"],
+    "metodologia": ["metodologia", "materiais e métodos", "método", "metodo"],
+    "resultados": ["resultados e discussão", "resultados e discussao", "resultados",
+                   "discussão", "discussao"],
+    "conclusao": ["considerações finais", "consideracoes finais", "conclusão", "conclusao"],
+}
+FIM_DO_CORPO = ["referências", "referencias", "glossário", "glossario",
+                "apêndice", "apendice", "anexo", "anexos"]
+MARCAS_PLACEHOLDER = ["lorem ipsum", "xxxxxxxx", "título do capítulo", "titulo do capitulo",
+                      "título do capitulo", "xxxxxxxxxx"]
 
-def extrair_resposta_json(texto_resposta: str):
+
+# ---------------------------------------------------------------- utilidades
+
+def _sem_acento(t):
+    return "".join(c for c in unicodedata.normalize("NFKD", t) if not unicodedata.combining(c))
+
+
+def _normalizar(t):
+    return t.strip().lower().rstrip(".:").strip()
+
+
+def _chave_capitulo(nome):
+    """Converte o nome que a tela envia (com acento) na chave interna de criterios."""
+    n = _sem_acento(_normalizar(nome))
+    return ALIASES_CAPITULOS.get(n, n)
+
+
+def _sem_numeracao(texto):
+    return re.sub(r"^\d+(\.\d+)*\s*\.?\s*", "", texto.strip())
+
+
+def _classificar_nome(texto):
+    n = _normalizar(_sem_numeracao(texto))
+    for chave, nomes in NOMES_SECAO.items():
+        for nome in nomes:
+            if n == nome or n.startswith(nome + " ") or n.startswith(nome + "/"):
+                return chave
+    return None
+
+
+def _e_titulo_numerado(texto):
+    if len(texto) > 150:
+        return None, None
+    m = re.match(r"^(\d+)((?:\.\d+)*)\s*\.?\s*(\S.*)$", texto)
+    if not m:
+        return None, None
+    resto = m.group(3).strip()
+    if not resto or len(resto) > 140:
+        return None, None
+    profundidade = 1 + (m.group(2).count(".") if m.group(2) else 0)
+    return profundidade, resto
+
+
+def _linhas_numeradas(texto_numerado):
+    saida = []
+    for linha in texto_numerado.split("\n"):
+        m = re.match(r"^\[(\d+)\]\s?(.*)$", linha)
+        if m:
+            saida.append((int(m.group(1)), m.group(2).strip()))
+    return saida
+
+
+def tem_placeholder(texto):
+    t = texto.lower()
+    return any(m in t for m in MARCAS_PLACEHOLDER)
+
+
+def fatiar_documento(texto_numerado):
+    """Divide o texto numerado em blocos por capitulo, preservando os indices de paragrafo."""
+    linhas = _linhas_numeradas(texto_numerado)
+    if not linhas:
+        return []
+
+    inicio = 0
+    for pos, (_, texto) in enumerate(linhas):
+        if _normalizar(texto) in ("sumário", "sumario"):
+            inicio = pos + 1
+    if inicio == 0:
+        for pos, (_, texto) in enumerate(linhas):
+            if _classificar_nome(texto) == "introducao":
+                inicio = pos
+                break
+
+    fim = len(linhas)
+    for pos in range(inicio, len(linhas)):
+        if _normalizar(_sem_numeracao(linhas[pos][1])) in FIM_DO_CORPO:
+            fim = pos
+            break
+
+    corpo = linhas[inicio:fim]
+    if not corpo:
+        return []
+
+    marcos = []
+    capitulo_atual = None
+    for pos, (_, texto) in enumerate(corpo):
+        chave = _classificar_nome(texto)
+        nivel, resto = _e_titulo_numerado(texto)
+        numero = re.match(r"^(\d+)", texto.strip()).group(1) if nivel else None
+        if chave and (nivel is None or nivel == 1):
+            marcos.append((pos, chave, texto))
+            capitulo_atual = numero
+        elif nivel == 1:
+            marcos.append((pos, _classificar_nome(resto) or "referencial", texto))
+            capitulo_atual = numero
+        elif nivel and nivel >= 2 and numero != capitulo_atual:
+            marcos.append((pos, "referencial", texto))
+            capitulo_atual = numero
+
+    if not marcos:
+        return []
+
+    blocos = []
+    for i, (pos, chave, titulo) in enumerate(marcos):
+        pos_fim = marcos[i + 1][0] if i + 1 < len(marcos) else len(corpo)
+        trecho = corpo[pos:pos_fim]
+        blocos.append({
+            "chave": chave,
+            "titulo": titulo,
+            "idx_inicio": trecho[0][0],
+            "idx_fim": trecho[-1][0],
+            "paragrafos": len(trecho),
+            "palavras": sum(len(t.split()) for _, t in trecho),
+            "texto": "\n".join("[%d] %s" % (idx, t) for idx, t in trecho),
+        })
+    return blocos
+
+
+def extrair_resposta_json(texto_resposta):
     """Extrai e faz parse do JSON retornado pela IA, tolerando blocos markdown."""
-    texto = texto_resposta.strip()
+    texto = (texto_resposta or "").strip()
     if "```json" in texto:
         texto = texto.split("```json")[1].split("```")[0]
     elif "```" in texto:
@@ -177,12 +304,85 @@ def _qn(tag):
     return "{%s}%s" % (W_NS, tag)
 
 
-def inserir_comentarios_no_docx(caminho_entrada, caminho_saida, comentarios_por_paragrafo, numero_versao, nome_professor="Professor(a)"):
-    """
-    Insere comentarios nativos do Word manipulando diretamente o pacote ZIP do .docx.
-    comentarios_por_paragrafo: lista de tuplas (indice_paragrafo, texto_comentario, tipo)
-    Retorna (inseridos, falhas).
-    """
+# ---------------------------------------------------------- chamada ao modelo
+
+INSTRUCOES_COMUNS = """
+O TEXTO ABAIXO ESTA NUMERADO POR PARAGRAFO NO FORMATO "[N] texto".
+Use EXATAMENTE o numero N entre colchetes como "paragrafo_indice". Nao invente indices e nao use indices
+que nao aparecam no texto recebido.
+
+REGRAS DE ESCRITA DOS COMENTARIOS:
+- Escreva em portugues brasileiro, com tom respeitoso e construtivo, como um orientador falando com o aluno.
+- Cada comentario deve ter no minimo duas frases: o que esta faltando ou errado, e como corrigir.
+- Cada comentario deve CITAR entre aspas um trecho curto do texto do aluno que motivou a observacao, ou
+  dizer explicitamente que o elemento nao foi encontrado no capitulo.
+- NAO afirme que algo esta ausente sem ter procurado no texto recebido.
+- NAO comente paragrafos corretos. Foque em ausencias, erros e melhorias.
+- NUNCA escreva apenas o tipo do comentario como texto. O campo "comentario" e o texto que o aluno vai ler.
+
+Retorne APENAS um JSON valido, sem markdown e sem texto adicional:
+[{"paragrafo_indice": 0, "comentario": "texto do comentario", "tipo": "melhoria"}]
+Se nao houver nada a apontar, retorne [].
+"""
+
+
+def _chamar_ia(cliente, instrucao_criterios, texto_usuario, rotulo):
+    prompt_sistema = (
+        "Voce e avaliador especialista de monografias de mestrado da Must University.\n"
+        "Norma academica: APA.\n\n"
+        + instrucao_criterios
+        + "\n"
+        + INSTRUCOES_COMUNS
+    )
+    try:
+        resposta = cliente.chat.completions.create(
+            model=MODELO,
+            messages=[
+                {"role": "system", "content": prompt_sistema},
+                {"role": "user", "content": texto_usuario[:60000]},
+            ],
+            temperature=0.2,
+        )
+        bruto = resposta.choices[0].message.content
+        itens = extrair_resposta_json(bruto)
+        if not isinstance(itens, list):
+            logger.error("[%s] resposta nao e lista: %s" % (rotulo, bruto[:500]))
+            return []
+        return itens
+    except Exception as e:
+        logger.error("[%s] falha na chamada ou no parse: %s" % (rotulo, e))
+        return []
+
+
+def _validar(itens, rotulo, faixa=None):
+    """Descarta comentario quebrado, vazio, com indice invalido ou igual ao tipo."""
+    tipos = {"ausencia", "melhoria", "desvio_projeto", "aprovado", "erro", "placeholder"}
+    validos = []
+    for item in itens:
+        if not isinstance(item, dict):
+            continue
+        idx = item.get("paragrafo_indice")
+        comentario = (item.get("comentario") or "").strip()
+        tipo = (item.get("tipo") or "melhoria").strip()
+        if not isinstance(idx, int):
+            continue
+        if tipo == "aprovado":
+            continue
+        if comentario.lower() in tipos or len(comentario) < TAMANHO_MINIMO_COMENTARIO:
+            logger.warning("[%s] comentario descartado por texto invalido: %r" % (rotulo, comentario))
+            continue
+        if faixa and not (faixa[0] <= idx <= faixa[1]):
+            logger.warning("[%s] indice %s fora da faixa %s, descartado" % (rotulo, idx, faixa))
+            continue
+        validos.append((idx, comentario, tipo))
+    return validos
+
+
+# ------------------------------------------------- insercao dos comentarios
+
+def inserir_comentarios_no_docx(caminho_entrada, caminho_saida, comentarios_por_paragrafo,
+                                numero_versao, nome_professor="Professor(a)"):
+    """Insere comentarios nativos do Word manipulando diretamente o pacote ZIP do .docx."""
     pasta_temp = tempfile.mkdtemp()
     try:
         with zipfile.ZipFile(caminho_entrada, 'r') as z:
@@ -210,7 +410,7 @@ def inserir_comentarios_no_docx(caminho_entrada, caminho_saida, comentarios_por_
 
         for idx, texto_comentario, tipo in comentarios_por_paragrafo:
             if idx < 0 or idx >= len(paragrafos_xml):
-                logger.warning("Indice de paragrafo fora do intervalo: %s (total: %s)" % (idx, len(paragrafos_xml)))
+                logger.warning("Indice fora do intervalo: %s (total: %s)" % (idx, len(paragrafos_xml)))
                 falhas += 1
                 continue
             try:
@@ -249,9 +449,8 @@ def inserir_comentarios_no_docx(caminho_entrada, caminho_saida, comentarios_por_
             return 0, falhas
 
         os.makedirs(os.path.dirname(comments_xml_path), exist_ok=True)
-        comments_tree_final = etree.ElementTree(comments_root)
-        comments_tree_final.write(comments_xml_path, xml_declaration=True, encoding="UTF-8", standalone=True)
-
+        etree.ElementTree(comments_root).write(comments_xml_path, xml_declaration=True,
+                                               encoding="UTF-8", standalone=True)
         tree.write(document_xml_path, xml_declaration=True, encoding="UTF-8", standalone=True)
 
         _garantir_relacionamento_comentarios(pasta_temp)
@@ -263,8 +462,7 @@ def inserir_comentarios_no_docx(caminho_entrada, caminho_saida, comentarios_por_
             for raiz, _, arquivos in os.walk(pasta_temp):
                 for nome_arquivo in arquivos:
                     caminho_completo = os.path.join(raiz, nome_arquivo)
-                    caminho_relativo = os.path.relpath(caminho_completo, pasta_temp)
-                    zf.write(caminho_completo, caminho_relativo)
+                    zf.write(caminho_completo, os.path.relpath(caminho_completo, pasta_temp))
 
         return inseridos, falhas
     finally:
@@ -285,10 +483,10 @@ def _garantir_relacionamento_comentarios(pasta_temp):
     ja_existe = any(r.get("Type", "").endswith("/comments") for r in root)
     if not ja_existe:
         ids = [r.get("Id", "") for r in root]
-        numeros = [int(i.replace("rId", "")) for i in ids if i.startswith("rId") and i.replace("rId", "").isdigit()]
-        novo_id = "rId%s" % (max(numeros, default=0) + 1)
+        numeros = [int(i.replace("rId", "")) for i in ids
+                   if i.startswith("rId") and i.replace("rId", "").isdigit()]
         rel = etree.SubElement(root, "{%s}Relationship" % RELS_NS)
-        rel.set("Id", novo_id)
+        rel.set("Id", "rId%s" % (max(numeros, default=0) + 1))
         rel.set("Type", "http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments")
         rel.set("Target", "comments.xml")
 
@@ -300,121 +498,139 @@ def _garantir_content_type_comentarios(pasta_temp):
     parser = etree.XMLParser(remove_blank_text=False)
     tree = etree.parse(ct_path, parser)
     root = tree.getroot()
-    ja_existe = any(
-        el.get("PartName") == "/word/comments.xml" for el in root
-        if el.tag == "{%s}Override" % CT_NS
-    )
+    ja_existe = any(el.get("PartName") == "/word/comments.xml" for el in root
+                    if el.tag == "{%s}Override" % CT_NS)
     if not ja_existe:
         override = etree.SubElement(root, "{%s}Override" % CT_NS)
         override.set("PartName", "/word/comments.xml")
-        override.set("ContentType", "application/vnd.openxmlformats-officedocument.wordprocessingml.comments+xml")
+        override.set("ContentType",
+                     "application/vnd.openxmlformats-officedocument.wordprocessingml.comments+xml")
     tree.write(ct_path, xml_declaration=True, encoding="UTF-8", standalone=True)
 
 
-async def processar_documento(caminho_versao, caminho_projeto, nome_aluno, numero_versao, capitulos, nome_professor="Professor(a)"):
+# ------------------------------------------------------------ fluxo principal
+
+async def processar_documento(caminho_versao, caminho_projeto, nome_aluno, numero_versao,
+                              capitulos, nome_professor="Professor(a)"):
     texto_versao = extrair_texto_docx(caminho_versao)
+    linhas = _linhas_numeradas(texto_versao)
+    if not linhas:
+        raise ValueError("Nao foi possivel ler o texto do documento enviado.")
+    ultimo_indice = linhas[-1][0]
 
-    contexto_projeto = "NENHUM PROJETO DE CAPSTONE FOI ENVIADO PARA ESTE ALUNO."
-    if caminho_projeto:
-        texto_projeto = extrair_texto_docx_completo(caminho_projeto)
-        contexto_projeto = "PROJETO DE CAPSTONE APROVADO (documento de referencia oficial do tema, problema de pesquisa, objetivos e metodologia aprovados para este aluno):\n%s" % texto_projeto[:20000]
+    # capitulos que a professora marcou na tela
+    selecionados = []
+    for cap in capitulos or []:
+        chave = _chave_capitulo(cap)
+        if chave in ("introducao", "metodologia", "referencial", "resultados", "conclusao") \
+                and chave not in selecionados:
+            selecionados.append(chave)
+    if not selecionados:
+        selecionados = ["introducao", "metodologia", "referencial"]
 
-    criterios_aplicaveis = ""
-    capitulos_incluidos = []
-    for cap in capitulos:
-        cap = cap.strip().lower()
-        cap = ALIASES_CAPITULOS.get(cap, cap)
-        if cap not in CRITERIOS:
-            logger.warning("Capitulo sem criterios cadastrados, ignorado: %s" % cap)
-            continue
-        if cap in capitulos_incluidos:
-            continue
-        capitulos_incluidos.append(cap)
-        criterios_aplicaveis += "\n=== %s ===\n" % cap.upper()
-        criterios_aplicaveis += CRITERIOS[cap]
-
-    logger.info("Capitulos solicitados: %s | Criterios aplicados: %s" % (capitulos, capitulos_incluidos))
-
-    prompt_sistema = """Voce e avaliador especialista de monografias de mestrado da Must University.
-Sua funcao e analisar o texto enviado e gerar feedback construtivo e preciso em portugues brasileiro.
-Norma academica: APA.
-
-%s
-
-VERIFICACAO DE ADERENCIA AO PROJETO (CRITERIO OBRIGATORIO E PRIORITARIO):
-Antes de qualquer outra analise, compare o conteudo da monografia abaixo com o Projeto de Capstone acima.
-- O tema tratado na monografia e o MESMO tema aprovado no projeto?
-- O problema de pesquisa, os objetivos e a metodologia da monografia estao alinhados com o que foi aprovado no projeto?
-- Se o aluno se afastou do tema, objetivo ou metodologia originalmente aprovados, isso e um problema GRAVE.
-  Gere um comentario especifico apontando claramente o desvio, citando o que foi aprovado no projeto e o que esta sendo
-  apresentado de diferente na monografia. Marque esse comentario com tipo "desvio_projeto".
-- Se nao houver projeto de capstone enviado, ignore esta verificacao.
-
-CRITERIOS OBRIGATORIOS POR CAPITULO:
-%s
-
-O TEXTO DA MONOGRAFIA ABAIXO ESTA NUMERADO POR PARAGRAFO NO FORMATO "[N] texto".
-Use EXATAMENTE o numero N entre colchetes como "paragrafo_indice" na sua resposta. Nao invente indices.
-
-INSTRUCOES IMPORTANTES:
-- Seja especifico: aponte o problema exato e sugira como corrigir
-- Use tom respeitoso e construtivo
-- NAO comente paragrafos que estao corretos
-- Foque apenas em ausencias, erros, melhorias necessarias e desvios em relacao ao projeto aprovado
-- Se um capitulo listado nos criterios acima NAO existir no texto enviado, gere UM comentario apontando a ausencia
-  desse capitulo, ancorado no ultimo paragrafo do texto, com tipo "ausencia"
-- O comentario de desvio de projeto (se houver) deve ser o primeiro a aparecer, ancorado no paragrafo mais relevante (geralmente o de contextualizacao ou problema de pesquisa)
-
-Retorne APENAS um JSON valido, sem texto adicional, sem markdown:
-[{"paragrafo_indice": 0, "comentario": "texto do comentario", "tipo": "ausencia|melhoria|desvio_projeto"}]""" % (contexto_projeto, criterios_aplicaveis)
+    blocos = fatiar_documento(texto_versao)
+    logger.info("Capitulos marcados: %s | Blocos detectados: %s"
+                % (selecionados, [(b["chave"], b["titulo"][:40], b["paragrafos"]) for b in blocos]))
 
     cliente = openai.OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
-    resposta = cliente.chat.completions.create(
-        model="gpt-4o",
-        messages=[
-            {"role": "system", "content": prompt_sistema},
-            {"role": "user", "content": "Monografia de %s (V%s), texto numerado por paragrafo:\n\n%s" % (nome_aluno, numero_versao, texto_versao[:120000])}
-        ],
-        temperature=0.3
-    )
+    comentarios = []
 
-    texto_resposta = resposta.choices[0].message.content
-    logger.info("Resposta bruta da IA: %s" % texto_resposta[:2000])
+    # 1. aderencia ao projeto de capstone
+    if caminho_projeto:
+        texto_projeto = extrair_texto_docx_completo(caminho_projeto)
+        blocos_base = [b for b in blocos if b["chave"] in ("introducao", "metodologia")]
+        trecho_base = "\n".join(b["texto"] for b in blocos_base) or texto_versao[:20000]
+        usuario = ("PROJETO DE CAPSTONE APROVADO:\n%s\n\n"
+                   "TRECHO DA MONOGRAFIA DE %s (V%s):\n%s"
+                   % (texto_projeto[:20000], nome_aluno, numero_versao, trecho_base))
+        itens = _chamar_ia(cliente, CRITERIO_ADERENCIA, usuario, "aderencia")
+        validos = _validar(itens, "aderencia")
+        for idx, texto, _tipo in validos:
+            comentarios.append((idx, "[DESVIO DO PROJETO] " + texto, "desvio_projeto"))
+        logger.info("[aderencia] %s comentario(s)" % len(validos))
 
-    try:
-        comentarios_ia = extrair_resposta_json(texto_resposta)
-    except Exception as e:
-        logger.error("Falha ao fazer parse do JSON da IA: %s" % e)
-        logger.error("Texto recebido: %s" % texto_resposta)
-        raise ValueError("A IA retornou um formato inesperado e o documento nao pode ser comentado: %s" % e)
+    # 2. uma chamada por capitulo marcado
+    for chave in selecionados:
+        blocos_da_chave = [b for b in blocos if b["chave"] == chave]
 
-    if not isinstance(comentarios_ia, list):
-        raise ValueError("A resposta da IA nao e uma lista de comentarios como esperado.")
-
-    comentarios_por_paragrafo = []
-    for item in comentarios_ia:
-        idx = item.get("paragrafo_indice")
-        comentario = item.get("comentario", "")
-        tipo = item.get("tipo", "melhoria")
-        if idx is None or not comentario:
+        if not blocos_da_chave:
+            comentarios.append((
+                ultimo_indice,
+                "O capitulo de %s foi marcado como presente nesta versao, mas nao foi localizado no "
+                "documento. Verifique se o titulo do capitulo esta escrito no texto e se o conteudo "
+                "foi enviado." % chave.capitalize(),
+                "ausencia"))
+            logger.info("[%s] capitulo marcado e nao encontrado" % chave)
             continue
-        if tipo == "aprovado":
+
+        criterio = CRITERIOS["referencial_capitulo"] if chave == "referencial" else CRITERIOS[chave]
+
+        for bloco in blocos_da_chave:
+            rotulo = "%s/%s" % (chave, bloco["titulo"][:30])
+
+            if tem_placeholder(bloco["texto"]):
+                comentarios.append((
+                    bloco["idx_inicio"],
+                    "Este capitulo ainda esta com o texto padrao do modelo, com marcacoes como "
+                    "\"lorem ipsum\" ou \"Xxxxxxxx\". Substitua o conteudo do modelo pelo texto da "
+                    "pesquisa antes de submeter a proxima versao.",
+                    "placeholder"))
+                logger.info("[%s] placeholder detectado, capitulo nao avaliado" % rotulo)
+                continue
+
+            usuario = ("Capitulo: %s\nMonografia de %s (V%s)\n\n%s"
+                       % (bloco["titulo"], nome_aluno, numero_versao, bloco["texto"]))
+            itens = _chamar_ia(cliente, criterio, usuario, rotulo)
+            validos = _validar(itens, rotulo, faixa=(bloco["idx_inicio"], bloco["idx_fim"]))
+            comentarios.extend(validos)
+            logger.info("[%s] %s comentario(s) em %s paragrafos"
+                        % (rotulo, len(validos), bloco["paragrafos"]))
+
+    # 3. visao do conjunto dos capitulos teoricos
+    teoricos = [b for b in blocos if b["chave"] == "referencial" and not tem_placeholder(b["texto"])]
+    if "referencial" in selecionados and len(teoricos) >= 2:
+        resumo = "\n".join("[%d] %s (%d paragrafos, %d palavras)"
+                           % (b["idx_inicio"], b["titulo"], b["paragrafos"], b["palavras"])
+                           for b in teoricos)
+        usuario = ("Capitulos teoricos da monografia de %s (V%s):\n\n%s" % (nome_aluno, numero_versao, resumo))
+        itens = _chamar_ia(cliente, CRITERIOS["referencial_secao"], usuario, "referencial/conjunto")
+        validos = _validar(itens, "referencial/conjunto",
+                           faixa=(teoricos[0]["idx_inicio"], teoricos[-1]["idx_fim"]))
+        comentarios.extend(validos)
+        logger.info("[referencial/conjunto] %s comentario(s)" % len(validos))
+
+    # 4. remove duplicados e ordena pela posicao no documento
+    vistos = set()
+    finais = []
+    for idx, texto, tipo in comentarios:
+        chave_dedup = (idx, texto[:60].lower())
+        if chave_dedup in vistos:
             continue
-        prefixo = "[DESVIO DO PROJETO] " if tipo == "desvio_projeto" else ""
-        comentarios_por_paragrafo.append((idx, "%s%s" % (prefixo, comentario), tipo))
+        vistos.add(chave_dedup)
+        finais.append((idx, texto, tipo))
+    finais.sort(key=lambda c: c[0])
+
+    logger.info("TOTAL de comentarios validos: %s" % len(finais))
+
+    if not finais:
+        raise ValueError(
+            "A analise nao gerou nenhum comentario valido para este documento. "
+            "Verifique se o arquivo enviado e a dissertacao e se os capitulos marcados existem no texto."
+        )
 
     with tempfile.NamedTemporaryFile(delete=False, suffix=".docx") as tmp:
         caminho_resultado = tmp.name
 
     inseridos, falhas = inserir_comentarios_no_docx(
-        caminho_versao, caminho_resultado, comentarios_por_paragrafo, numero_versao, nome_professor
+        caminho_versao, caminho_resultado, finais, numero_versao, nome_professor
     )
-
-    logger.info("Comentarios inseridos: %s | Falhas: %s | Total recebido da IA: %s" % (inseridos, falhas, len(comentarios_ia)))
+    logger.info("Comentarios inseridos: %s | Falhas: %s | Validos: %s"
+                % (inseridos, falhas, len(finais)))
 
     if inseridos == 0:
         raise ValueError(
-            "Nenhum comentario pode ser inserido no documento. A IA retornou %s comentario(s), mas %s falharam por indice invalido." % (len(comentarios_ia), falhas)
+            "Nenhum comentario pode ser inserido no documento. Foram gerados %s comentario(s) validos, "
+            "mas %s falharam por indice invalido." % (len(finais), falhas)
         )
 
     return caminho_resultado
