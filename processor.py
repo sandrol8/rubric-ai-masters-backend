@@ -1,5 +1,6 @@
 import os
 import re
+import random
 import unicodedata
 import json
 import logging
@@ -7,7 +8,7 @@ import shutil
 import tempfile
 import zipfile
 from lxml import etree
-from datetime import datetime
+from datetime import datetime, timedelta
 import openai
 from extrator import extrair_texto_docx, extrair_texto_docx_completo
 
@@ -26,6 +27,14 @@ TAMANHO_MINIMO_COMENTARIO = 40
 MAX_COMENTARIOS_POR_BLOCO = 8
 LIMIAR_REPETICAO = 0.32
 MAX_POR_TEMA = 2
+
+# Distribuicao dos horarios dos comentarios.
+# Entre comentarios de paragrafos diferentes: 2 a 3 minutos.
+# Entre comentarios do MESMO paragrafo: poucos segundos, porque sao leitura continua.
+MINUTOS_MIN_ENTRE_COMENTARIOS = 2
+MINUTOS_MAX_ENTRE_COMENTARIOS = 3
+SEGUNDOS_MIN_MESMO_PARAGRAFO = 15
+SEGUNDOS_MAX_MESMO_PARAGRAFO = 50
 
 CRITERIOS = {
     "introducao": """
@@ -396,6 +405,33 @@ def _qn(tag):
     return "{%s}%s" % (W_NS, tag)
 
 
+def _distribuir_horarios(indices, fim=None):
+    """Gera um horario para cada comentario, terminando no instante da geracao.
+
+    indices: lista dos indices de paragrafo, na ordem em que os comentarios serao inseridos.
+    Entre paragrafos diferentes o intervalo e de 2 a 3 minutos. Dentro do mesmo paragrafo o
+    intervalo e de poucos segundos. A janela cresce para tras: o primeiro comentario do
+    documento recebe o horario mais antigo e o ultimo recebe o horario da geracao.
+    """
+    if not indices:
+        return []
+    fim = fim or datetime.now()
+
+    intervalos = []
+    for anterior, atual in zip(indices, indices[1:]):
+        if atual == anterior:
+            intervalos.append(random.randint(SEGUNDOS_MIN_MESMO_PARAGRAFO,
+                                             SEGUNDOS_MAX_MESMO_PARAGRAFO))
+        else:
+            intervalos.append(random.randint(MINUTOS_MIN_ENTRE_COMENTARIOS * 60,
+                                             MINUTOS_MAX_ENTRE_COMENTARIOS * 60))
+
+    horarios = [fim - timedelta(seconds=sum(intervalos))]
+    for intervalo in intervalos:
+        horarios.append(horarios[-1] + timedelta(seconds=intervalo))
+    return horarios
+
+
 # ---------------------------------------------------------- chamada ao modelo
 
 INSTRUCOES_COMUNS = """
@@ -503,8 +539,9 @@ def inserir_comentarios_no_docx(caminho_entrada, caminho_saida, comentarios_por_
 
         inseridos = 0
         falhas = 0
+        horarios = _distribuir_horarios([c[0] for c in comentarios_por_paragrafo])
 
-        for idx, texto_comentario, tipo in comentarios_por_paragrafo:
+        for posicao, (idx, texto_comentario, tipo) in enumerate(comentarios_por_paragrafo):
             if idx < 0 or idx >= len(paragrafos_xml):
                 logger.warning("Indice fora do intervalo: %s (total: %s)" % (idx, len(paragrafos_xml)))
                 falhas += 1
@@ -517,7 +554,8 @@ def inserir_comentarios_no_docx(caminho_entrada, caminho_saida, comentarios_por_
                 comment_el = etree.SubElement(comments_root, _qn("comment"))
                 comment_el.set(_qn("id"), comment_id)
                 comment_el.set(_qn("author"), nome_professor)
-                comment_el.set(_qn("date"), datetime.now().strftime("%Y-%m-%dT%H:%M:%SZ"))
+                momento = horarios[posicao] if posicao < len(horarios) else datetime.now()
+                comment_el.set(_qn("date"), momento.strftime("%Y-%m-%dT%H:%M:%SZ"))
                 comment_el.set(_qn("initials"), _gerar_iniciais(nome_professor))
                 p_el = etree.SubElement(comment_el, _qn("p"))
                 r_el = etree.SubElement(p_el, _qn("r"))
