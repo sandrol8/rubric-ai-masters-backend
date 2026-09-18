@@ -8,7 +8,7 @@ import shutil
 import tempfile
 import zipfile
 from lxml import etree
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import openai
 from extrator import extrair_texto_docx, extrair_texto_docx_completo
 
@@ -35,6 +35,14 @@ MINUTOS_MIN_ENTRE_COMENTARIOS = 2
 MINUTOS_MAX_ENTRE_COMENTARIOS = 3
 SEGUNDOS_MIN_MESMO_PARAGRAFO = 15
 SEGUNDOS_MAX_MESMO_PARAGRAFO = 50
+
+# O servidor roda em UTC. Os comentarios precisam sair no horario de Brasilia, senao o
+# Word mostra tres horas a mais do que o relogio do professor.
+FUSO_BRASILIA = timezone(timedelta(hours=-3))
+
+
+def agora_brasilia():
+    return datetime.now(timezone.utc).astimezone(FUSO_BRASILIA).replace(tzinfo=None)
 
 CRITERIOS = {
     "introducao": """
@@ -415,7 +423,7 @@ def _distribuir_horarios(indices, fim=None):
     """
     if not indices:
         return []
-    fim = fim or datetime.now()
+    fim = fim or agora_brasilia()
 
     intervalos = []
     for anterior, atual in zip(indices, indices[1:]):
@@ -554,7 +562,7 @@ def inserir_comentarios_no_docx(caminho_entrada, caminho_saida, comentarios_por_
                 comment_el = etree.SubElement(comments_root, _qn("comment"))
                 comment_el.set(_qn("id"), comment_id)
                 comment_el.set(_qn("author"), nome_professor)
-                momento = horarios[posicao] if posicao < len(horarios) else datetime.now()
+                momento = horarios[posicao] if posicao < len(horarios) else agora_brasilia()
                 comment_el.set(_qn("date"), momento.strftime("%Y-%m-%dT%H:%M:%SZ"))
                 comment_el.set(_qn("initials"), _gerar_iniciais(nome_professor))
                 p_el = etree.SubElement(comment_el, _qn("p"))
