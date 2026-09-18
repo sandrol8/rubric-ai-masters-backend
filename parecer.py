@@ -394,6 +394,77 @@ def gerar_parecer_docx(caminho_saida, dados, avaliacao, papel="banca"):
     return caminho_saida
 
 
+# ------------------------------------- teto de nota quando ha ajuste a fazer
+
+TETO_COM_COMENTARIO = 9.5
+
+# Qual capitulo do trabalho sustenta cada criterio do parecer. Se a analise gerou
+# comentario de ajuste nesse capitulo, o criterio nao pode receber nota acima do teto.
+CAPITULOS_DO_CRITERIO = {
+    "relevancia": {"introducao"},
+    "fundamentacao": {"referencial"},
+    "metodologia": {"metodologia"},
+    "pesquisa": {"introducao", "metodologia"},
+    "textual": {"introducao", "metodologia", "referencial", "resultados", "conclusao"},
+    "resultados": {"resultados", "conclusao"},
+}
+
+
+def _capitulos_comentados(caminho_comentado, texto_numerado):
+    """Descobre em quais capitulos a analise deixou comentario de ajuste."""
+    import zipfile
+    from xml.etree import ElementTree
+
+    from processor import fatiar_documento
+
+    W = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}"
+    try:
+        with zipfile.ZipFile(caminho_comentado) as z:
+            if "word/comments.xml" not in z.namelist():
+                return set()
+            corpo = ElementTree.fromstring(z.read("word/document.xml")).find(W + "body")
+            paragrafos = corpo.findall(W + "p")
+    except Exception as e:
+        logger.warning("[parecer] nao foi possivel ler os comentarios: %s" % e)
+        return set()
+
+    indices = set()
+    for i, p in enumerate(paragrafos):
+        if p.find(".//" + W + "commentRangeStart") is not None:
+            indices.add(i)
+
+    comentados = set()
+    for bloco in fatiar_documento(texto_numerado):
+        for idx in indices:
+            if bloco["idx_inicio"] <= idx <= bloco["idx_fim"]:
+                comentados.add(bloco["chave"])
+                break
+    logger.info("[parecer] capitulos com comentario de ajuste: %s" % sorted(comentados))
+    return comentados
+
+
+def _aplicar_teto(avaliacao, capitulos_comentados):
+    """Rebaixa o criterio cujo capitulo recebeu comentario, escolhendo a frase do banco
+    com a melhor nota que ainda respeite o teto. A frase e a nota andam sempre juntas."""
+    for c in CRITERIOS_PARECER:
+        chave = c["chave"]
+        atual = avaliacao["criterios"].get(chave)
+        if not atual or atual["nota"] <= TETO_COM_COMENTARIO:
+            continue
+        if not (CAPITULOS_DO_CRITERIO.get(chave, set()) & capitulos_comentados):
+            continue
+        for nota, frase in c["banco"]:
+            if nota <= TETO_COM_COMENTARIO:
+                logger.info("[parecer] teto aplicado em %s: %s -> %s" % (chave, atual["nota"], nota))
+                avaliacao["criterios"][chave] = {"nota": nota, "justificativa": frase}
+                break
+
+    notas = [v["nota"] for v in avaliacao["criterios"].values()]
+    avaliacao["media"] = round(sum(notas) / float(len(notas)), 2)
+    logger.info("[parecer] media apos o teto: %s" % avaliacao["media"])
+    return avaliacao
+
+
 # ------------------------------------------------------------ fluxo da banca
 
 async def processar_banca(caminho_tcf, nome_aluno, nome_orientador, programa,
@@ -428,6 +499,9 @@ async def processar_banca(caminho_tcf, nome_aluno, nome_orientador, programa,
     # 2. avaliacao dos criterios e textos do parecer
     cliente = openai.OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
     avaliacao = avaliar_para_parecer(cliente, texto, nome_aluno)
+
+    # regra da Must: se a analise apontou ajuste no capitulo, o criterio nao chega a 10
+    avaliacao = _aplicar_teto(avaliacao, _capitulos_comentados(caminho_comentado, texto))
 
     # 3. montagem do parecer
     with tempfile.NamedTemporaryFile(delete=False, suffix=".docx") as tmp:
