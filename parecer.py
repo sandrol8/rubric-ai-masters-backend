@@ -9,7 +9,7 @@ O trabalho comentado continua sendo gerado pelo processor.py. Este modulo cuida 
 import json
 import logging
 import os
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 
 from docx import Document
 from docx.enum.table import WD_TABLE_ALIGNMENT
@@ -21,6 +21,13 @@ from docx.shared import Pt, RGBColor
 logger = logging.getLogger("rubric-ai-masters")
 
 MODELO = "gpt-4o"
+
+# O servidor roda em UTC; o parecer precisa sair com a data do professor.
+FUSO_BRASILIA = timezone(timedelta(hours=-3))
+
+
+def agora_brasilia():
+    return datetime.now(timezone.utc).astimezone(FUSO_BRASILIA).replace(tzinfo=None)
 
 # Criterios que a IA avalia lendo o texto. Cada frase vem do banco das professoras e ja
 # esta amarrada a uma nota. A IA escolhe o indice, nunca escreve a justificativa.
@@ -194,7 +201,7 @@ def _extrair_json(texto):
 
 def avaliar_para_parecer(cliente, texto_versao, nome_aluno):
     """Uma chamada que devolve nota, justificativa, titulo, parecer e devolutiva."""
-    sistema = PROMPT_PARECER % (datetime.now().strftime("%d/%m/%Y"), _instrucao_criterios())
+    sistema = PROMPT_PARECER % (agora_brasilia().strftime("%d/%m/%Y"), _instrucao_criterios())
     try:
         resposta = cliente.chat.completions.create(
             model=MODELO,
@@ -319,7 +326,7 @@ def gerar_parecer_docx(caminho_saida, dados, avaliacao, papel="banca"):
     cab.alignment = WD_TABLE_ALIGNMENT.CENTER
     _celula(cab.cell(0, 0), ["Aluno(a): " + dados.get("aluno", "")])
     _celula(cab.cell(0, 1), ["Orientador (a): " + dados.get("orientador", "")])
-    _celula(cab.cell(1, 0), ["Data: " + dados.get("data", datetime.now().strftime("%d/%m/%Y"))])
+    _celula(cab.cell(1, 0), ["Data: " + dados.get("data", agora_brasilia().strftime("%d/%m/%Y"))])
     _celula(cab.cell(1, 1), ["Prof. Avaliador (a): " + dados.get("avaliador", "")])
     _celula(cab.cell(2, 0), ["Programa: " + dados.get("programa", "")])
     _celula(cab.cell(2, 1), [""])
@@ -511,7 +518,7 @@ async def processar_banca(caminho_tcf, nome_aluno, nome_orientador, programa,
         "aluno": nome_aluno,
         "orientador": nome_orientador,
         "programa": programa,
-        "data": datetime.now().strftime("%d/%m/%Y"),
+        "data": agora_brasilia().strftime("%d/%m/%Y"),
         "avaliador": nome_avaliador if papel == "banca" else "",
     }
     if papel == "orientador" and nome_avaliador:
