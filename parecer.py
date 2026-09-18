@@ -392,3 +392,83 @@ def gerar_parecer_docx(caminho_saida, dados, avaliacao, papel="banca"):
     doc.save(caminho_saida)
     logger.info("[parecer] documento gerado em %s" % caminho_saida)
     return caminho_saida
+
+
+# ------------------------------------------------------------ fluxo da banca
+
+async def processar_banca(caminho_tcf, nome_aluno, nome_orientador, programa,
+                          nome_avaliador, papel="banca"):
+    """Avalia um TCF pronto e devolve os dois documentos da banca.
+
+    Retorna (caminho_comentado, caminho_parecer, avaliacao).
+    papel: 'banca' deixa autonomia, criatividade e entregas em branco.
+           'orientador' tambem deixa em branco, porque a IA nao observa processo,
+           mas o nome vai para o campo Orientador do cabecalho.
+    """
+    import openai
+    import tempfile
+
+    from extrator import extrair_texto_docx
+    from processor import processar_documento
+
+    texto = extrair_texto_docx(caminho_tcf)
+    if not texto or texto.startswith("Erro ao extrair"):
+        raise ValueError("Nao foi possivel ler o texto do TCF enviado.")
+
+    # 1. comentarios no trabalho, usando o motor que ja existe, com todos os capitulos
+    caminho_comentado = await processar_documento(
+        caminho_versao=caminho_tcf,
+        caminho_projeto=None,
+        nome_aluno=nome_aluno,
+        numero_versao="banca",
+        capitulos=["introducao", "metodologia", "referencial", "resultados", "conclusao"],
+        nome_professor=nome_avaliador or "Membro da Banca",
+    )
+
+    # 2. avaliacao dos criterios e textos do parecer
+    cliente = openai.OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
+    avaliacao = avaliar_para_parecer(cliente, texto, nome_aluno)
+
+    # 3. montagem do parecer
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".docx") as tmp:
+        caminho_parecer = tmp.name
+
+    dados = {
+        "aluno": nome_aluno,
+        "orientador": nome_orientador,
+        "programa": programa,
+        "data": datetime.now().strftime("%d/%m/%Y"),
+        "avaliador": nome_avaliador if papel == "banca" else "",
+    }
+    if papel == "orientador" and nome_avaliador:
+        dados["orientador"] = nome_avaliador
+
+    gerar_parecer_docx(caminho_parecer, dados, avaliacao, papel=papel)
+    return caminho_comentado, caminho_parecer, avaliacao
+
+
+def resumo_para_tela(avaliacao):
+    """Devolve as notas num formato simples, para a tela de revisao mostrar."""
+    linhas = []
+    for c in CRITERIOS_PARECER:
+        r = avaliacao["criterios"].get(c["chave"]) or {}
+        linhas.append({
+            "chave": c["chave"],
+            "criterio": c["titulo"],
+            "nota": r.get("nota"),
+            "justificativa": r.get("justificativa"),
+        })
+    for c in CRITERIOS_PROCESSO:
+        linhas.append({
+            "chave": c["chave"],
+            "criterio": c["titulo"],
+            "nota": None,
+            "justificativa": "a preencher pelo professor",
+        })
+    return {
+        "criterios": linhas,
+        "media": avaliacao.get("media"),
+        "titulo": avaliacao.get("titulo"),
+        "parecer": avaliacao.get("parecer"),
+        "devolutiva": avaliacao.get("devolutiva"),
+    }
