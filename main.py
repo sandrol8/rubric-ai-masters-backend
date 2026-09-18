@@ -1,9 +1,13 @@
+import base64
+import os
+import tempfile
+
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
-import tempfile
-import os
+
 from processor import processar_documento
+from parecer import processar_banca, resumo_para_tela
 
 app = FastAPI(title="Rubric AI Masters Backend")
 
@@ -15,13 +19,16 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
 @app.get("/")
 def root():
     return {"status": "online", "servico": "Rubric AI Masters Backend"}
 
+
 @app.get("/health")
 def health():
     return {"status": "ok"}
+
 
 @app.post("/analisar")
 async def analisar_documento(
@@ -70,3 +77,65 @@ async def analisar_documento(
             os.unlink(caminho_versao)
         if caminho_projeto and os.path.exists(caminho_projeto):
             os.unlink(caminho_projeto)
+
+
+@app.post("/analisar-banca")
+async def analisar_banca(
+    tcf: UploadFile = File(...),
+    nome_aluno: str = Form(...),
+    nome_orientador: str = Form(""),
+    programa: str = Form(""),
+    nome_avaliador: str = Form(""),
+    papel: str = Form("banca")
+):
+    """Avalia um TCF pronto e devolve os dois documentos da banca em base64.
+
+    A tela decodifica os dois, guarda cada um no Storage e mostra os botoes de download.
+    Nao recebe projeto de capstone e nao recebe lista de capitulos: o trabalho esta
+    concluido e todos os capitulos entram na analise.
+    """
+    caminho_tcf = None
+    caminho_comentado = None
+    caminho_parecer = None
+    try:
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".docx") as tmp:
+            conteudo = await tcf.read()
+            tmp.write(conteudo)
+            caminho_tcf = tmp.name
+
+        papel_normalizado = "orientador" if papel.strip().lower().startswith("orient") else "banca"
+
+        caminho_comentado, caminho_parecer, avaliacao = await processar_banca(
+            caminho_tcf=caminho_tcf,
+            nome_aluno=nome_aluno,
+            nome_orientador=nome_orientador,
+            programa=programa,
+            nome_avaliador=nome_avaliador,
+            papel=papel_normalizado
+        )
+
+        base = nome_aluno.replace(" ", "_")
+        with open(caminho_comentado, "rb") as f:
+            comentado_b64 = base64.b64encode(f.read()).decode("ascii")
+        with open(caminho_parecer, "rb") as f:
+            parecer_b64 = base64.b64encode(f.read()).decode("ascii")
+
+        return {
+            "trabalho_comentado": {
+                "nome_arquivo": f"{base}_comentado_banca.docx",
+                "conteudo_base64": comentado_b64
+            },
+            "parecer": {
+                "nome_arquivo": f"{base}_parecer_banca.docx",
+                "conteudo_base64": parecer_b64
+            },
+            "resumo": resumo_para_tela(avaliacao)
+        }
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+    finally:
+        for caminho in (caminho_tcf, caminho_comentado, caminho_parecer):
+            if caminho and os.path.exists(caminho):
+                os.unlink(caminho)
