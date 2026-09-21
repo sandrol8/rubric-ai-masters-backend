@@ -29,8 +29,8 @@ LIMIAR_REPETICAO = 0.32
 MAX_POR_TEMA = 2
 # Temas que so podem aparecer UMA vez no documento inteiro.
 # Temas que so podem aparecer UMA vez no documento inteiro, e qual ocorrencia fica.
-# O recorte fica com a ultima (a metodologia vem depois da introducao); a justificativa, com a primeira.
-TEMAS_UNICOS_NO_DOCUMENTO = {"recorte_temporal": "ultimo", "justificativa": "primeiro"}
+# O valor diz em qual capitulo o comentario deve ficar, se houver mais de um. Sem ele, fica o primeiro.
+TEMAS_UNICOS_NO_DOCUMENTO = {"recorte_temporal": "metodologia", "justificativa": "introducao"}
 # Temas que so podem aparecer UMA vez por capitulo (regra de agrupamento do referencial).
 TEMAS_UNICOS_NO_CAPITULO = {"poucos_autores"}
 # Semelhanca a partir da qual dois comentarios de capitulos diferentes contam como repetidos.
@@ -474,13 +474,25 @@ def _pede_para_verificar(texto):
     return bool(re.search(r"verific\w* se (ha|existe|existem)", t))
 
 
-def _limitar_repeticao_global(comentarios):
+def _limitar_repeticao_global(comentarios, blocos=None):
     """Segunda peneira, sobre o documento inteiro: tira repeticao entre capitulos diferentes."""
-    ultimo_por_tema = {}
+    def capitulo_de(idx):
+        for b in blocos or []:
+            if b["idx_inicio"] <= idx <= b["idx_fim"]:
+                return b["chave"]
+        return None
+
+    # para cada tema unico, escolhe qual ocorrencia fica: a do capitulo certo, senao a primeira
+    escolhido_por_tema = {}
     for idx, texto, tipo in comentarios:
         tema = None if tipo == "desvio_projeto" else _familia(texto)
-        if TEMAS_UNICOS_NO_DOCUMENTO.get(tema) == "ultimo":
-            ultimo_por_tema[tema] = idx
+        if tema not in TEMAS_UNICOS_NO_DOCUMENTO:
+            continue
+        no_lugar_certo = capitulo_de(idx) == TEMAS_UNICOS_NO_DOCUMENTO[tema]
+        atual = escolhido_por_tema.get(tema)
+        if atual is None or (no_lugar_certo and not atual[1]):
+            escolhido_por_tema[tema] = (idx, no_lugar_certo)
+    ultimo_por_tema = {t: v[0] for t, v in escolhido_por_tema.items()}
     aceitos = []
     assinaturas = []
     temas_usados = set()
@@ -764,9 +776,6 @@ def _validar(itens, rotulo, faixa=None):
         if _so_elogio(comentario):
             logger.info("[%s] comentario que so elogia, descartado: %r" % (rotulo, comentario[:80]))
             continue
-        if _sem_apontamento(comentario):
-            logger.info("[%s] comentario sem falha concreta nem acao, descartado: %r" % (rotulo, comentario[:80]))
-            continue
         if _revisao_como_citacao(comentario):
             logger.info("[%s] 'revisao da literatura' tratada como citacao, descartado: %r"
                         % (rotulo, comentario[:80]))
@@ -780,6 +789,78 @@ def _validar(itens, rotulo, faixa=None):
             continue
         validos.append((idx, comentario, tipo))
     return validos
+
+
+# ------------------------------------------------- revisao final do tom
+
+INSTRUCAO_REVISAO = """
+Voce e uma professora experiente de mestrado da Must University revisando os comentarios que
+serao deixados na margem de um trabalho. Voce recebe uma lista de comentarios numerados por "id".
+
+Para CADA comentario, faca uma destas duas coisas:
+
+1. Se o comentario aponta um problema real ou uma melhoria concreta, REESCREVA no tom direto de uma
+   professora: diga qual e o problema e o que o aluno deve fazer. Mantenha o conteudo, os nomes de
+   autores e os trechos citados entre aspas. Tire aberturas que validam antes de criticar
+   ("A citacao esta correta, mas", "O paragrafo e pertinente, mas", "Embora o paragrafo traga").
+   Troque "Considere", "seria interessante", "poderia" e "seria importante" por verbos diretos
+   ("Inclua", "Reescreva", "Ajuste", "Aprofunde"). Duas ou tres frases no maximo. Pode terminar com
+   "Ajustar." quando fizer sentido. Exemplo do tom esperado:
+   "O recorte temporal definido para a pesquisa bibliografica foi muito longo (de 2015 a 2025).
+   Recomenda-se o recorte temporal dos ultimos 5 anos. Ajustar."
+
+2. Se o comentario so elogia, so confirma que algo esta correto, ou so pede para "verificar se" ou
+   "garantir que" sem apontar nenhum problema, devolva o texto VAZIO ("") para que ele seja retirado.
+
+Nunca escreva numero de paragrafo. Nunca invente problema que nao estava no comentario original.
+Comentarios que comecam com "Neste subcapitulo" devem continuar comecando assim.
+
+Retorne APENAS um JSON valido, sem markdown:
+[{"id": 0, "comentario": "texto reescrito ou vazio"}]
+"""
+
+
+def _revisar_tom(cliente, comentarios):
+    """Uma chamada so, no fim: reescreve no tom direto e tira os que nao apontam problema.
+
+    Se a chamada falhar, devolve os comentarios como estavam.
+    """
+    if not comentarios:
+        return comentarios
+    lista = [{"id": i, "comentario": texto} for i, (_, texto, _) in enumerate(comentarios)]
+    try:
+        resposta = cliente.chat.completions.create(
+            model=MODELO,
+            messages=[
+                {"role": "system", "content": INSTRUCAO_REVISAO},
+                {"role": "user", "content": json.dumps(lista, ensure_ascii=False)},
+            ],
+            temperature=0.2,
+        )
+        itens = extrair_resposta_json(resposta.choices[0].message.content)
+        novos = {int(it["id"]): (it.get("comentario") or "").strip()
+                 for it in itens if isinstance(it, dict) and "id" in it}
+    except Exception as e:
+        logger.error("[revisao] falha, comentarios mantidos como estavam: %s" % e)
+        return comentarios
+
+    revisados = []
+    for i, (idx, texto, tipo) in enumerate(comentarios):
+        if i not in novos:
+            revisados.append((idx, texto, tipo))
+            continue
+        novo = _limpar_numero_paragrafo(novos[i])
+        if not novo:
+            logger.info("[revisao] retirado por nao apontar problema: %r" % texto[:80])
+            continue
+        if len(novo) < TAMANHO_MINIMO_COMENTARIO or _so_elogio(novo) or _pede_para_verificar(novo):
+            logger.info("[revisao] retirado depois da reescrita: %r" % novo[:80])
+            continue
+        if texto.startswith("[DESVIO DO PROJETO]") and not novo.startswith("[DESVIO DO PROJETO]"):
+            novo = "[DESVIO DO PROJETO] " + novo
+        revisados.append((idx, novo, tipo))
+    logger.info("[revisao] %s de %s comentario(s) mantidos" % (len(revisados), len(comentarios)))
+    return revisados
 
 
 # ------------------------------------------------- insercao dos comentarios
@@ -1025,7 +1106,8 @@ async def processar_documento(caminho_versao, caminho_projeto, nome_aluno, numer
         vistos.add(chave_dedup)
         finais.append((idx, texto, tipo))
     finais.sort(key=lambda c: c[0])
-    finais = _limitar_repeticao_global(finais)
+    finais = _limitar_repeticao_global(finais, blocos)
+    finais = _revisar_tom(cliente, finais)
 
     logger.info("TOTAL de comentarios validos: %s" % len(finais))
 
