@@ -486,10 +486,10 @@ async def processar_banca(caminho_tcf, nome_aluno, nome_orientador, programa,
     import openai
     import tempfile
 
-    from extrator import extrair_texto_docx
+    from extrator import extrair_texto_docx_com_tabelas
     from processor import processar_documento
 
-    texto = extrair_texto_docx(caminho_tcf)
+    texto = extrair_texto_docx_com_tabelas(caminho_tcf)
     if not texto or texto.startswith("Erro ao extrair"):
         raise ValueError("Nao foi possivel ler o texto do TCF enviado.")
 
@@ -501,6 +501,7 @@ async def processar_banca(caminho_tcf, nome_aluno, nome_orientador, programa,
         numero_versao="banca",
         capitulos=["introducao", "metodologia", "referencial", "resultados", "conclusao"],
         nome_professor=nome_avaliador or "Membro da Banca",
+        avisar_ausentes=False,
     )
 
     # 2. avaliacao dos criterios e textos do parecer

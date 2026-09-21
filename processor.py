@@ -10,7 +10,7 @@ import zipfile
 from lxml import etree
 from datetime import datetime, timedelta, timezone
 import openai
-from extrator import extrair_texto_docx, extrair_texto_docx_completo
+from extrator import extrair_texto_docx_com_tabelas, extrair_texto_docx_completo
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("rubric-ai-masters")
@@ -30,7 +30,7 @@ MAX_POR_TEMA = 2
 # Temas que so podem aparecer UMA vez no documento inteiro.
 TEMAS_UNICOS_NO_DOCUMENTO = {"recorte_temporal"}
 # Semelhanca a partir da qual dois comentarios de capitulos diferentes contam como repetidos.
-LIMIAR_REPETICAO_GLOBAL = 0.42
+LIMIAR_REPETICAO_GLOBAL = 0.6
 
 # Distribuicao dos horarios dos comentarios.
 # Entre comentarios de paragrafos diferentes: 2 a 3 minutos.
@@ -68,7 +68,10 @@ REGRAS GERAIS:
 1. DESCRICAO DA METODOLOGIA: O tipo de pesquisa (bibliografica, de campo, etc.) deve estar claramente descrito.
 2. FUNDAMENTACAO DA ESCOLHA: Minimo de 2 autores diferentes de metodologia cientifica. Antes de apontar falta, LISTE os autores de metodologia que encontrou no trecho.
 3. PERIODO DE REALIZACAO: Indicar meses e ano cursados na disciplina de capstone.
-4. PRINCIPIOS ETICOS: Paragrafo informando que o projeto foi aprovado pelo Comite de Etica institucional.
+4. PRINCIPIOS ETICOS: deve haver um paragrafo sobre os aspectos eticos. Em PESQUISA BIBLIOGRAFICA, basta
+   explicar que nao ha participacao de seres humanos nem coleta de dados pessoais, e NAO se exige aprovacao
+   do Comite de Etica. Em PESQUISA DE CAMPO, exija a informacao de aprovacao pelo Comite de Etica.
+   So aponte este item se nao houver nenhum paragrafo tratando de etica.
 
 SE FOR PESQUISA BIBLIOGRAFICA (verificar todos os itens):
 5. DESCRITORES/PALAVRAS-CHAVE usados na busca.
@@ -345,9 +348,11 @@ def _bloco_ja_comentados(comentarios, limite=30):
     linhas = []
     for _, texto, _ in comentarios[-limite:]:
         linhas.append("- " + texto[:160].replace("\n", " "))
-    return ("\n\nCOMENTARIOS JA FEITOS EM OUTRAS PARTES DO TRABALHO. Nao repita estes problemas e nao "
-            "reaproveite estas frases. Se precisar tratar de assunto parecido neste trecho, escreva de forma "
-            "diferente e especifica deste trecho:\n" + "\n".join(linhas))
+    return ("\n\nPARA REFERENCIA, estes comentarios ja foram feitos em OUTRAS partes do trabalho. Avalie o "
+            "trecho acima normalmente, com todos os criterios, e aponte TODOS os problemas dele, inclusive "
+            "problemas do mesmo tipo dos listados abaixo. A unica restricao e de redacao: nao copie estas "
+            "frases. Escreva cada comentario de forma especifica deste trecho, citando o que o aluno escreveu "
+            "aqui:\n" + "\n".join(linhas))
 
 
 _PADRAO_PARAGRAFO = re.compile(
@@ -431,16 +436,38 @@ def tem_placeholder(texto):
     return any(m in t for m in MARCAS_PLACEHOLDER)
 
 
+_LINHA_DE_SUMARIO = re.compile(r"(\.\s*){4,}\s*\d*\s*$|\t\s*\d+\s*$")
+
+
+def _titulo_do_sumario(texto):
+    """Tira os pontinhos e o numero da pagina de uma linha de sumario."""
+    t = re.sub(r"(\.\s*){4,}\s*\d*\s*$", "", texto)
+    t = re.sub(r"\t\s*\d+\s*$", "", t)
+    return _normalizar(_sem_numeracao(t))
+
+
 def fatiar_documento(texto_numerado):
     """Divide o texto numerado em blocos por capitulo, preservando os indices de paragrafo."""
     linhas = _linhas_numeradas(texto_numerado)
     if not linhas:
         return []
 
+    # linhas do sumario (com pontinhos ate o numero da pagina): saem do corpo e viram lista de titulos
+    titulos_sumario = set()
+    ultima_do_sumario = -1
+    for pos, (_, texto) in enumerate(linhas):
+        if len(texto) < 220 and _LINHA_DE_SUMARIO.search(texto):
+            titulo = _titulo_do_sumario(texto)
+            if titulo:
+                titulos_sumario.add(titulo)
+            ultima_do_sumario = pos
+
     inicio = 0
     for pos, (_, texto) in enumerate(linhas):
         if _normalizar(texto) in ("sumário", "sumario"):
             inicio = pos + 1
+    if ultima_do_sumario >= inicio:
+        inicio = ultima_do_sumario + 1
     if inicio == 0:
         for pos, (_, texto) in enumerate(linhas):
             if _classificar_nome(texto) == "introducao":
@@ -459,16 +486,30 @@ def fatiar_documento(texto_numerado):
 
     marcos = []
     capitulo_atual = None
+    aguardando_numero = False
     for pos, (_, texto) in enumerate(corpo):
         chave = _classificar_nome(texto)
         nivel, resto = _e_titulo_numerado(texto)
         numero = re.match(r"^(\d+)", texto.strip()).group(1) if nivel else None
+        if aguardando_numero and nivel and nivel >= 2:
+            # primeiro subtitulo depois de um titulo de capitulo sem numero: e do mesmo capitulo
+            capitulo_atual = numero
+            aguardando_numero = False
+            continue
         if chave and (nivel is None or nivel == 1):
             marcos.append((pos, chave, texto))
             capitulo_atual = numero
+            aguardando_numero = False
+        elif (nivel is None and len(texto) <= 150 and titulos_sumario
+              and _normalizar(texto) in titulos_sumario):
+            # titulo de capitulo escrito sem numero, reconhecido porque esta no sumario
+            marcos.append((pos, "referencial", texto))
+            capitulo_atual = None
+            aguardando_numero = True
         elif nivel == 1:
             marcos.append((pos, _classificar_nome(resto) or "referencial", texto))
             capitulo_atual = numero
+            aguardando_numero = False
         elif nivel and nivel >= 2 and numero != capitulo_atual:
             marcos.append((pos, "referencial", texto))
             capitulo_atual = numero
@@ -776,8 +817,11 @@ def _garantir_content_type_comentarios(pasta_temp):
 # ------------------------------------------------------------ fluxo principal
 
 async def processar_documento(caminho_versao, caminho_projeto, nome_aluno, numero_versao,
-                              capitulos, nome_professor="Professor(a)"):
-    texto_versao = extrair_texto_docx(caminho_versao)
+                              capitulos, nome_professor="Professor(a)", avisar_ausentes=True):
+    """avisar_ausentes: no modo orientacao a professora marca os capitulos presentes, entao um
+    capitulo marcado e nao encontrado vira aviso. Na banca todos os capitulos vao marcados e o
+    trabalho pode nao ter algum deles (ex.: sem capitulo de Resultados), entao nao se avisa."""
+    texto_versao = extrair_texto_docx_com_tabelas(caminho_versao)
     linhas = _linhas_numeradas(texto_versao)
     if not linhas:
         raise ValueError("Nao foi possivel ler o texto do documento enviado.")
@@ -821,6 +865,9 @@ async def processar_documento(caminho_versao, caminho_projeto, nome_aluno, numer
         blocos_da_chave = [b for b in blocos if b["chave"] == chave]
 
         if not blocos_da_chave:
+            if not avisar_ausentes:
+                logger.info("[%s] capitulo nao existe neste trabalho, ignorado" % chave)
+                continue
             comentarios.append((
                 ultimo_indice,
                 "O capitulo de %s foi marcado como presente nesta versao, mas nao foi localizado no "
