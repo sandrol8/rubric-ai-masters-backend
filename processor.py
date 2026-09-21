@@ -28,11 +28,13 @@ MAX_COMENTARIOS_POR_BLOCO = 8
 LIMIAR_REPETICAO = 0.32
 MAX_POR_TEMA = 2
 # Temas que so podem aparecer UMA vez no documento inteiro.
-TEMAS_UNICOS_NO_DOCUMENTO = {"recorte_temporal"}
+# Temas que so podem aparecer UMA vez no documento inteiro, e qual ocorrencia fica.
+# O recorte fica com a ultima (a metodologia vem depois da introducao); a justificativa, com a primeira.
+TEMAS_UNICOS_NO_DOCUMENTO = {"recorte_temporal": "ultimo", "justificativa": "primeiro"}
 # Temas que so podem aparecer UMA vez por capitulo (regra de agrupamento do referencial).
 TEMAS_UNICOS_NO_CAPITULO = {"poucos_autores"}
 # Semelhanca a partir da qual dois comentarios de capitulos diferentes contam como repetidos.
-LIMIAR_REPETICAO_GLOBAL = 0.6
+LIMIAR_REPETICAO_GLOBAL = 0.5
 
 # Distribuicao dos horarios dos comentarios.
 # Entre comentarios de paragrafos diferentes: 2 a 3 minutos.
@@ -292,6 +294,7 @@ FAMILIAS_TEMA = {
                        "diversificar as fontes", "outras fontes", "mais fontes"],
     "recorte_temporal": ["recorte temporal", "delimitacao temporal", "periodo de busca",
                          "periodo da pesquisa", "periodo de publicacao"],
+    "justificativa": ["justificativa"],
     "atualidade": ["antig", "recent", "atuali", "contemporane", "classic", "desatualiz"],
     "citacao_direta": ["citacao direta", "aspas", "indicacao de pagina"],
     "fundamentacao": ["sem apoio", "fundamenta", "respaldo", "sem citacao", "sem fonte",
@@ -424,9 +427,42 @@ _MARCAS_DE_ELOGIO = re.compile(
     r"esta bem|estao bem|bem definid|bem formulad|bem estruturad", re.IGNORECASE)
 
 
+_ELOGIO_FORTE = re.compile(
+    r"isso esta corret|isto esta corret|esta correto e atende|atende aos requisitos|"
+    r"esta adequado e atende|o que e adequado\.?$", re.IGNORECASE)
+_VIRADA = re.compile(r", mas |no entanto|porem|contudo|entretanto|todavia", re.IGNORECASE)
+
+# Todo comentario precisa apontar uma falha concreta ou mandar fazer algo.
+_FALHA_CONCRETA = re.compile(
+    r"falt|carec|ausen|nao ha |nao foi |nao apresenta|nao explicit|nao cita|nao inclui|nao traz|"
+    r"nao menciona|sem |insuficien|exces|muito longo|vag|erro|incoeren|desalinh|apenas um|"
+    r"somente um|um unico|isolad|repetid|confus|inadequad|incomplet|desatualiz|antig", re.IGNORECASE)
+_ACAO_DIRETA = re.compile(
+    r"\binclua|\breescreva|\bajuste|\bajustar\b|\bcorrija|\brevise|\bretire|\bsubstitua|"
+    r"\breformule|\bacrescente|\bindique|\bapresente|\bexplicite|\bretome|\brecomenda-se", re.IGNORECASE)
+
+
+def _sem_aspas(t):
+    return re.sub(r"[\"'“”‘’][^\"'“”‘’]{3,}[\"'“”‘’]", " ", t)
+
+
+def _sem_apontamento(texto):
+    """Comentario que nao aponta falha nem manda fazer nada: 'seria importante garantir que...'."""
+    t = _sem_aspas(_sem_acento(texto.lower()))
+    return not _FALHA_CONCRETA.search(t) and not _ACAO_DIRETA.search(_sem_aspas(texto.lower()))
+
+
+def _revisao_como_citacao(texto):
+    """Chamar 'a revisao da literatura' de citacao de autor, erro visto nas consideracoes finais."""
+    t = _sem_acento(texto.lower())
+    return bool(re.search(r"revis\w* da literatura", t)) and "cita" in t
+
+
 def _so_elogio(texto):
     """Comentario que so diz que esta tudo certo. Professor nao comenta paragrafo correto."""
     t = _sem_acento(texto.lower())
+    if _ELOGIO_FORTE.search(t) and not _VIRADA.search(t):
+        return True
     # o trecho citado do aluno, entre aspas, nao conta: ele pode ter "nao ha" sem ser problema
     t = re.sub(r"[\"'“”‘’][^\"'“”‘’]{3,}[\"'“”‘’]", " ", t)
     return bool(_MARCAS_DE_ELOGIO.search(t)) and not _MARCAS_DE_PROBLEMA.search(t)
@@ -440,13 +476,27 @@ def _pede_para_verificar(texto):
 
 def _limitar_repeticao_global(comentarios):
     """Segunda peneira, sobre o documento inteiro: tira repeticao entre capitulos diferentes."""
+    ultimo_por_tema = {}
+    for idx, texto, tipo in comentarios:
+        tema = None if tipo == "desvio_projeto" else _familia(texto)
+        if TEMAS_UNICOS_NO_DOCUMENTO.get(tema) == "ultimo":
+            ultimo_por_tema[tema] = idx
     aceitos = []
     assinaturas = []
     temas_usados = set()
     for idx, texto, tipo in comentarios:
+        tema_unico = None if tipo == "desvio_projeto" else _familia(texto)
+        if tema_unico in ultimo_por_tema and idx != ultimo_por_tema[tema_unico]:
+            logger.info("[global] %s comentado mais adiante no texto, este descartado: %r"
+                        % (tema_unico, texto[:60]))
+            continue
         tema = None if tipo == "desvio_projeto" else _familia(texto)
         if tema in TEMAS_UNICOS_NO_DOCUMENTO and tema in temas_usados:
             logger.info("[global] tema %s ja comentado no documento, descartado: %r" % (tema, texto[:60]))
+            continue
+        if _sem_acento(texto.lower()).startswith("neste subcapitulo"):
+            # comentario de subcapitulo no formato da Valeria: um por capitulo, de proposito
+            aceitos.append((idx, texto, tipo))
             continue
         atual = _assinatura(texto)
         repetido = False
@@ -713,6 +763,13 @@ def _validar(itens, rotulo, faixa=None):
             comentario = limpo
         if _so_elogio(comentario):
             logger.info("[%s] comentario que so elogia, descartado: %r" % (rotulo, comentario[:80]))
+            continue
+        if _sem_apontamento(comentario):
+            logger.info("[%s] comentario sem falha concreta nem acao, descartado: %r" % (rotulo, comentario[:80]))
+            continue
+        if _revisao_como_citacao(comentario):
+            logger.info("[%s] 'revisao da literatura' tratada como citacao, descartado: %r"
+                        % (rotulo, comentario[:80]))
             continue
         if _pede_para_verificar(comentario):
             logger.info("[%s] comentario vago de 'verificar se ha', descartado: %r" % (rotulo, comentario[:80]))
