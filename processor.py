@@ -27,6 +27,10 @@ TAMANHO_MINIMO_COMENTARIO = 40
 MAX_COMENTARIOS_POR_BLOCO = 8
 LIMIAR_REPETICAO = 0.32
 MAX_POR_TEMA = 2
+# Temas que so podem aparecer UMA vez no documento inteiro.
+TEMAS_UNICOS_NO_DOCUMENTO = {"recorte_temporal"}
+# Semelhanca a partir da qual dois comentarios de capitulos diferentes contam como repetidos.
+LIMIAR_REPETICAO_GLOBAL = 0.42
 
 # Distribuicao dos horarios dos comentarios.
 # Entre comentarios de paragrafos diferentes: 2 a 3 minutos.
@@ -51,11 +55,11 @@ A Introducao deve conter OBRIGATORIAMENTE todos os elementos abaixo. Aponte como
 1. CONTEXTUALIZACAO DO TEMA: O aluno apresenta o tema escolhido com relevancia clara, preferencialmente com fundamentacao teorica (citacoes). Aponte se falta fundamentacao na contextualizacao.
 2. PROBLEMA DE PESQUISA: Deve derivar da contextualizacao e OBRIGATORIAMENTE estar em forma de pergunta. Antes de apontar erro aqui, verifique se ha ponto de interrogacao no trecho. Se houver, o criterio esta atendido.
 3. OBJETIVO GERAL: Deve derivar diretamente do problema de pesquisa.
-4. OBJETIVOS ESPECIFICOS: Maximo de 3 ou 4. Antes de apontar excesso, CONTE os objetivos listados e cite a contagem no comentario.
+4. OBJETIVOS ESPECIFICOS: 3 ou 4 objetivos especificos esta CORRETO. So aponte excesso se houver 5 ou mais. CONTE os objetivos antes: se a contagem for 3 ou 4, NAO comente este item.
 5. JUSTIFICATIVA: Deve apresentar claramente por que a pesquisa e relevante. Aponte se estiver ausente ou vaga.
 6. INDICACAO METODOLOGICA: Deve indicar brevemente qual sera a metodologia, sem detalhar.
 7. PARAGRAFO DE SINTESE (ESTRUTURA): O ultimo paragrafo deve descrever como o trabalho esta organizado (ex: "O capitulo 2 aborda...").
-8. FREQUENCIA DE CITACOES: O texto deve conter citacoes a cada 2 ou 3 paragrafos no minimo. Aponte trechos longos sem citacao.
+8. APOIO TEORICO: aponte trecho longo de afirmacoes sem nenhuma citacao, comentando no proprio paragrafo onde falta a citacao. Nao conte paragrafos e nao diga quantos paragrafos ficaram sem citacao.
 """,
     "metodologia": """
 A Metodologia deve conter OBRIGATORIAMENTE todos os elementos abaixo:
@@ -68,7 +72,7 @@ REGRAS GERAIS:
 
 SE FOR PESQUISA BIBLIOGRAFICA (verificar todos os itens):
 5. DESCRITORES/PALAVRAS-CHAVE usados na busca.
-6. RECORTE TEMPORAL definido (ultimos 5 anos).
+6. RECORTE TEMPORAL: deve ser dos ultimos 5 anos. Se o periodo usado for maior, diga que o recorte ficou longo, cite o periodo que o aluno usou e recomende os ultimos 5 anos. NAO diga quais anos sao os corretos e NAO chame o recorte de \"incorreto\". Comente o recorte UMA unica vez, no paragrafo onde ele e definido, e nao volte ao assunto nos criterios de inclusao e exclusao.
 7. PLATAFORMAS DE BUSCA (ex: SciELO, Periodicos CAPES, BDTD, Google Academico).
 8. IDIOMAS consultados (portugues, espanhol, ingles).
 9. CRITERIOS DE INCLUSAO E EXCLUSAO das obras.
@@ -94,6 +98,14 @@ Voce esta avaliando UM capitulo teorico. Verifique OBRIGATORIAMENTE, dentro dest
 9. FOCO E DELIMITACAO: aponte conteudo periferico que nao serve aos objetivos.
 10. COESAO, COERENCIA E ORTOGRAFIA: aponte problemas de encadeamento entre paragrafos e erros de escrita.
 11. NORMA APA nas chamadas de autor dentro do texto.
+
+CAPITULO E SUBCAPITULOS, REGRA OBRIGATORIA:
+O capitulo pode ter subcapitulos (titulos como 3.1, 3.2). Avalie a fundamentacao teorica considerando o
+capitulo INTEIRO. Nunca afirme que o capitulo nao tem fundamentacao se outros subcapitulos dele tem.
+Se um subcapitulo estiver fraco, comente no paragrafo do TITULO desse subcapitulo, comecando com
+"Neste subcapitulo", e diga especificamente o que falta nele. Exemplo do tom esperado:
+"Neste subcapitulo, voce trouxe apenas um autor. Pela tematica abordada, e interessante que haja pelo menos
+dois autores dialogando."
 
 REGRA DE AGRUPAMENTO, OBRIGATORIA:
 Nao repita a mesma observacao em varios paragrafos. Se um problema se repete ao longo do capitulo (por
@@ -127,7 +139,7 @@ Verifique OBRIGATORIAMENTE:
 4. CONEXAO COM OBJETIVOS E COM O PROBLEMA de pesquisa.
 5. SENTIDO DOS DADOS: numeros e quadros devem ganhar leitura, nao apenas ser exibidos.
 6. QUADRO DE OBRAS RESULTANTES: se nao foi apresentado na Metodologia, deve estar aqui.
-7. FREQUENCIA DE CITACOES: citacoes a cada 2 ou 3 paragrafos no minimo.
+7. APOIO TEORICO: aponte trecho longo de analise sem nenhuma citacao, comentando no proprio paragrafo. Nao conte paragrafos.
 """,
     "conclusao": """
 As CONSIDERACOES FINAIS devem ser claras, breves, objetivas e baseadas nos achados, e NAO devem conter
@@ -267,6 +279,8 @@ def _pre_texto(texto_numerado, limite=40):
 
 
 FAMILIAS_TEMA = {
+    "recorte_temporal": ["recorte temporal", "delimitacao temporal", "periodo de busca",
+                         "periodo da pesquisa", "periodo de publicacao"],
     "atualidade": ["antig", "recent", "atuali", "contemporane", "classic", "desatualiz"],
     "citacao_direta": ["citacao direta", "aspas", "indicacao de pagina"],
     "fundamentacao": ["sem apoio", "fundamenta", "respaldo", "sem citacao", "sem fonte",
@@ -320,6 +334,94 @@ def _limitar_repeticao(validos, rotulo):
         assinaturas.append(atual)
         if tema:
             por_tema[tema] = por_tema.get(tema, 0) + 1
+        aceitos.append((idx, texto, tipo))
+    return aceitos
+
+
+def _bloco_ja_comentados(comentarios, limite=30):
+    """Lista curta do que ja foi comentado em outras partes, para a IA nao repetir a redacao."""
+    if not comentarios:
+        return ""
+    linhas = []
+    for _, texto, _ in comentarios[-limite:]:
+        linhas.append("- " + texto[:160].replace("\n", " "))
+    return ("\n\nCOMENTARIOS JA FEITOS EM OUTRAS PARTES DO TRABALHO. Nao repita estes problemas e nao "
+            "reaproveite estas frases. Se precisar tratar de assunto parecido neste trecho, escreva de forma "
+            "diferente e especifica deste trecho:\n" + "\n".join(linhas))
+
+
+_PADRAO_PARAGRAFO = re.compile(
+    r"\b(?:(nos|nas|dos|das|entre os|os|no|na|do|da|o|a)\s+)?"
+    r"par[aá]grafos?\s*\[?\d+\]?(?:\s*(?:,|e|a|até|ate|-)\s*\[?\d+\]?)*",
+    re.IGNORECASE)
+
+_TROCA_PARAGRAFO = {
+    "no": "neste trecho", "na": "neste trecho", "nos": "nestes trechos", "nas": "nestes trechos",
+    "do": "deste trecho", "da": "deste trecho", "dos": "destes trechos", "das": "destes trechos",
+    "entre os": "nestes trechos", "o": "este trecho", "a": "este trecho", "os": "estes trechos",
+}
+
+
+def _limpar_numero_paragrafo(texto):
+    """Tira do texto do comentario qualquer mencao a numero de paragrafo.
+
+    Os numeros [N] sao internos do sistema. Professor nenhum escreve "no paragrafo 128".
+    """
+    def trocar(m):
+        prefixo = (m.group(1) or "").lower()
+        if prefixo:
+            troca = _TROCA_PARAGRAFO.get(prefixo, "neste trecho")
+        else:
+            troca = "estes trechos" if re.match(r"par[aá]grafos", m.group(0), re.I) else "este trecho"
+        if m.group(0)[:1].isupper():
+            troca = troca[0].upper() + troca[1:]
+        return troca
+
+    novo = _PADRAO_PARAGRAFO.sub(trocar, texto)
+    novo = re.sub(r"\s*\[\d+\]", "", novo)
+    novo = re.sub(r"\s{2,}", " ", novo).strip()
+    return novo
+
+
+_NUMEROS_OK = r"(?:3|4|tres|três|quatro)"
+_NUMEROS_EXCESSO = r"(?:\b[5-9]\b|\b1\d\b|cinco|seis|sete|oito|nove|dez)"
+
+
+def _falso_excesso_de_objetivos(texto):
+    """Detecta o erro visto na devolutiva da Pamela: a IA conta 3 objetivos e diz que excedem 3 ou 4."""
+    t = _sem_acento(texto.lower())
+    if "objetivo" not in t:
+        return False
+    if not re.search(r"exced|ultrapass|acima do limite|alem do limite|limite recomendado|limite sugerido", t):
+        return False
+    if re.search(_NUMEROS_EXCESSO, t):
+        return False
+    return bool(re.search(r"\b" + _sem_acento(_NUMEROS_OK) + r"\b", t)) or "limite" in t
+
+
+def _limitar_repeticao_global(comentarios):
+    """Segunda peneira, sobre o documento inteiro: tira repeticao entre capitulos diferentes."""
+    aceitos = []
+    assinaturas = []
+    temas_usados = set()
+    for idx, texto, tipo in comentarios:
+        tema = None if tipo == "desvio_projeto" else _familia(texto)
+        if tema in TEMAS_UNICOS_NO_DOCUMENTO and tema in temas_usados:
+            logger.info("[global] tema %s ja comentado no documento, descartado: %r" % (tema, texto[:60]))
+            continue
+        atual = _assinatura(texto)
+        repetido = False
+        for anterior in assinaturas:
+            uniao = atual | anterior
+            if uniao and len(atual & anterior) / float(len(uniao)) >= LIMIAR_REPETICAO_GLOBAL:
+                repetido = True
+                break
+        if repetido:
+            logger.info("[global] comentario repetido descartado: %r" % texto[:60])
+            continue
+        assinaturas.append(atual)
+        if tema:
+            temas_usados.add(tema)
         aceitos.append((idx, texto, tipo))
     return aceitos
 
@@ -447,8 +549,20 @@ O TEXTO ABAIXO ESTA NUMERADO POR PARAGRAFO NO FORMATO "[N] texto".
 Use EXATAMENTE o numero N entre colchetes como "paragrafo_indice". Nao invente indices e nao use indices
 que nao aparecam no texto recebido.
 
+OS NUMEROS [N] SAO INTERNOS DO SISTEMA. O professor e o aluno nao veem esses numeros.
+NUNCA mencione numero de paragrafo no texto do comentario: nada de "no paragrafo 128", "paragrafos 20 a 25"
+ou "[63]". Para localizar, use "neste paragrafo", "neste trecho", "nesta secao" ou o titulo do capitulo ou
+subcapitulo. O comentario ja fica preso ao paragrafo certo.
+
 REGRAS DE ESCRITA DOS COMENTARIOS:
 - Escreva em portugues brasileiro, com tom respeitoso e construtivo, como um orientador falando com o aluno.
+- Seja direto e conciso, como uma professora experiente. Exemplo do tom esperado:
+  "O recorte temporal definido para a pesquisa bibliografica foi muito longo (de 2015 a 2025).
+  Recomenda-se o recorte temporal dos ultimos 5 anos. Ajustar."
+- Cada problema recebe UM unico comentario, no paragrafo onde ele acontece. Nao repita o mesmo problema
+  em outro paragrafo nem por outro criterio.
+- NAO comente paragrafo que esta correto. E proibido comentario que elogia e em seguida pede para
+  "verificar se", "garantir que" ou "considerar" algo sem apontar um problema concreto naquele paragrafo.
 - Cada comentario deve ter no minimo duas frases: o que esta faltando ou errado, e como corrigir.
 - Cada comentario deve CITAR entre aspas um trecho curto do texto do aluno que motivou a observacao, ou
   dizer explicitamente que o elemento nao foi encontrado no capitulo.
@@ -462,13 +576,14 @@ Se nao houver nada a apontar, retorne [].
 """
 
 
-def _chamar_ia(cliente, instrucao_criterios, texto_usuario, rotulo):
+def _chamar_ia(cliente, instrucao_criterios, texto_usuario, rotulo, ja_comentados=None):
     hoje = datetime.now()
     prompt_sistema = (
         "Voce e avaliador especialista de monografias de mestrado da Must University.\n"
         "Norma academica: APA.\n"
-        "A data de hoje e %s. O ano corrente e %d. Considere \"ultimos 5 anos\" como %d a %d. "
-        "NUNCA afirme que um ano igual ou anterior a %d ainda nao ocorreu.\n\n"
+        "A data de hoje e %s. O ano corrente e %d. Os \"ultimos 5 anos\" vao de %d a %d. "
+        "NUNCA afirme que um ano igual ou anterior a %d ainda nao ocorreu. Essa informacao serve para voce "
+        "julgar datas. Nos comentarios, nao dite quais anos sao os corretos.\n\n"
         % (hoje.strftime("%d/%m/%Y"), hoje.year, hoje.year - 5, hoje.year, hoje.year)
         + instrucao_criterios
         + "\n"
@@ -479,7 +594,7 @@ def _chamar_ia(cliente, instrucao_criterios, texto_usuario, rotulo):
             model=MODELO,
             messages=[
                 {"role": "system", "content": prompt_sistema},
-                {"role": "user", "content": texto_usuario[:60000]},
+                {"role": "user", "content": texto_usuario[:60000] + _bloco_ja_comentados(ja_comentados)},
             ],
             temperature=0.2,
         )
@@ -513,6 +628,14 @@ def _validar(itens, rotulo, faixa=None):
             continue
         if faixa and not (faixa[0] <= idx <= faixa[1]):
             logger.warning("[%s] indice %s fora da faixa %s, descartado" % (rotulo, idx, faixa))
+            continue
+        limpo = _limpar_numero_paragrafo(comentario)
+        if limpo != comentario:
+            logger.info("[%s] numero de paragrafo retirado do comentario: %r" % (rotulo, comentario[:80]))
+            comentario = limpo
+        if _falso_excesso_de_objetivos(comentario):
+            logger.warning("[%s] comentario de excesso de objetivos com 3 ou 4 objetivos, descartado: %r"
+                           % (rotulo, comentario[:80]))
             continue
         validos.append((idx, comentario, tipo))
     return validos
@@ -724,7 +847,7 @@ async def processar_documento(caminho_versao, caminho_projeto, nome_aluno, numer
 
             usuario = ("Capitulo: %s\nMonografia de %s (V%s)\n\n%s"
                        % (bloco["titulo"], nome_aluno, numero_versao, bloco["texto"]))
-            itens = _chamar_ia(cliente, criterio, usuario, rotulo)
+            itens = _chamar_ia(cliente, criterio, usuario, rotulo, ja_comentados=comentarios)
             validos = _limitar_repeticao(
                 _validar(itens, rotulo, faixa=(bloco["idx_inicio"], bloco["idx_fim"])), rotulo)
             comentarios.extend(validos)
@@ -738,7 +861,8 @@ async def processar_documento(caminho_versao, caminho_projeto, nome_aluno, numer
                            % (b["idx_inicio"], b["titulo"], b["paragrafos"], b["palavras"])
                            for b in teoricos)
         usuario = ("Capitulos teoricos da monografia de %s (V%s):\n\n%s" % (nome_aluno, numero_versao, resumo))
-        itens = _chamar_ia(cliente, CRITERIOS["referencial_secao"], usuario, "referencial/conjunto")
+        itens = _chamar_ia(cliente, CRITERIOS["referencial_secao"], usuario, "referencial/conjunto",
+                           ja_comentados=comentarios)
         validos = _validar(itens, "referencial/conjunto",
                            faixa=(teoricos[0]["idx_inicio"], teoricos[-1]["idx_fim"]))
         comentarios.extend(validos)
@@ -754,6 +878,7 @@ async def processar_documento(caminho_versao, caminho_projeto, nome_aluno, numer
         vistos.add(chave_dedup)
         finais.append((idx, texto, tipo))
     finais.sort(key=lambda c: c[0])
+    finais = _limitar_repeticao_global(finais)
 
     logger.info("TOTAL de comentarios validos: %s" % len(finais))
 
