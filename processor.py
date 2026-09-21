@@ -29,6 +29,8 @@ LIMIAR_REPETICAO = 0.32
 MAX_POR_TEMA = 2
 # Temas que so podem aparecer UMA vez no documento inteiro.
 TEMAS_UNICOS_NO_DOCUMENTO = {"recorte_temporal"}
+# Temas que so podem aparecer UMA vez por capitulo (regra de agrupamento do referencial).
+TEMAS_UNICOS_NO_CAPITULO = {"poucos_autores"}
 # Semelhanca a partir da qual dois comentarios de capitulos diferentes contam como repetidos.
 LIMIAR_REPETICAO_GLOBAL = 0.6
 
@@ -105,6 +107,8 @@ Voce esta avaliando UM capitulo teorico. Verifique OBRIGATORIAMENTE, dentro dest
 CAPITULO E SUBCAPITULOS, REGRA OBRIGATORIA:
 O capitulo pode ter subcapitulos (titulos como 3.1, 3.2). Avalie a fundamentacao teorica considerando o
 capitulo INTEIRO. Nunca afirme que o capitulo nao tem fundamentacao se outros subcapitulos dele tem.
+A falta de mais autores num subcapitulo recebe UM comentario so, no titulo do subcapitulo. Nao comente
+paragrafo por paragrafo que "seria interessante incluir mais autores".
 Se um subcapitulo estiver fraco, comente no paragrafo do TITULO desse subcapitulo, comecando com
 "Neste subcapitulo", e diga especificamente o que falta nele. Exemplo do tom esperado:
 "Neste subcapitulo, voce trouxe apenas um autor. Pela tematica abordada, e interessante que haja pelo menos
@@ -157,7 +161,9 @@ Verifique OBRIGATORIAMENTE:
 5. LIMITACOES da pesquisa e aspectos que podem ter influenciado os resultados.
 6. CAUTELA NA GENERALIZACAO dos achados.
 7. SUGESTOES DE PESQUISAS FUTURAS a partir das lacunas identificadas.
-8. AUSENCIA DE CITACOES: esta secao nao deve conter citacoes de autores. Aponte como erro qualquer citacao.
+8. AUSENCIA DE CITACOES: esta secao nao deve conter citacoes de autores. Citacao e nome de autor com ano,
+   como (Silva, 2023) ou Silva (2023). Mencionar "a revisao da literatura", "os estudos analisados" ou
+   "o corpus" NAO e citacao e NAO deve ser apontado.
 9. NENHUMA INFORMACAO NOVA que nao tenha sido desenvolvida no corpo do trabalho.
 """,
 }
@@ -282,6 +288,8 @@ def _pre_texto(texto_numerado, limite=40):
 
 
 FAMILIAS_TEMA = {
+    "poucos_autores": ["mais autores", "apenas um autor", "um unico autor", "outros autores",
+                       "diversificar as fontes", "outras fontes", "mais fontes"],
     "recorte_temporal": ["recorte temporal", "delimitacao temporal", "periodo de busca",
                          "periodo da pesquisa", "periodo de publicacao"],
     "atualidade": ["antig", "recent", "atuali", "contemporane", "classic", "desatualiz"],
@@ -314,13 +322,16 @@ def _limitar_repeticao(validos, rotulo):
     aceitos = []
     assinaturas = []
     por_tema = {}
+    # o comentario de subcapitulo, no formato da Valeria, tem prioridade sobre os de paragrafo
+    validos = sorted(validos, key=lambda c: 0 if _sem_acento(c[1].lower()).startswith("neste subcapitulo") else 1)
     for idx, texto, tipo in validos:
         if len(aceitos) >= MAX_COMENTARIOS_POR_BLOCO:
             logger.info("[%s] teto de %s comentarios atingido, restante descartado"
                         % (rotulo, MAX_COMENTARIOS_POR_BLOCO))
             break
         tema = _familia(texto)
-        if tema and por_tema.get(tema, 0) >= MAX_POR_TEMA:
+        limite_tema = 1 if tema in TEMAS_UNICOS_NO_CAPITULO else MAX_POR_TEMA
+        if tema and por_tema.get(tema, 0) >= limite_tema:
             logger.info("[%s] tema %s ja tem %s comentarios, descartado: %r"
                         % (rotulo, tema, MAX_POR_TEMA, texto[:60]))
             continue
@@ -402,6 +413,29 @@ def _falso_excesso_de_objetivos(texto):
     if re.search(_NUMEROS_EXCESSO, t):
         return False
     return bool(re.search(r"\b" + _sem_acento(_NUMEROS_OK) + r"\b", t)) or "limite" in t
+
+
+_MARCAS_DE_PROBLEMA = re.compile(
+    r"falt|carec|ausen|inclu|acrescent|ajust|revis|reformul|corrij|corrig|substitu|retir|remov|"
+    r"necess|recomenda|deve |devem |precisa|nao ha|nao foi|sem |insuficien|exces|longo|vag|"
+    r"desalinh|incoeren|erro|poderia|deveria|melhor", re.IGNORECASE)
+_MARCAS_DE_ELOGIO = re.compile(
+    r"esta corret|estao corret|atende aos|atende ao|atende a|esta adequad|estao adequad|"
+    r"esta bem|estao bem|bem definid|bem formulad|bem estruturad", re.IGNORECASE)
+
+
+def _so_elogio(texto):
+    """Comentario que so diz que esta tudo certo. Professor nao comenta paragrafo correto."""
+    t = _sem_acento(texto.lower())
+    # o trecho citado do aluno, entre aspas, nao conta: ele pode ter "nao ha" sem ser problema
+    t = re.sub(r"[\"'“”‘’][^\"'“”‘’]{3,}[\"'“”‘’]", " ", t)
+    return bool(_MARCAS_DE_ELOGIO.search(t)) and not _MARCAS_DE_PROBLEMA.search(t)
+
+
+def _pede_para_verificar(texto):
+    """Comentario vago do tipo 'seria importante verificar se ha outras fontes'."""
+    t = _sem_acento(texto.lower())
+    return bool(re.search(r"verific\w* se (ha|existe|existem)", t))
 
 
 def _limitar_repeticao_global(comentarios):
@@ -604,6 +638,9 @@ REGRAS DE ESCRITA DOS COMENTARIOS:
   em outro paragrafo nem por outro criterio.
 - NAO comente paragrafo que esta correto. E proibido comentario que elogia e em seguida pede para
   "verificar se", "garantir que" ou "considerar" algo sem apontar um problema concreto naquele paragrafo.
+- Va direto ao problema. NAO comece validando o que esta certo ("A citacao esta correta, mas...",
+  "O problema esta bem formulado, mas...", "A justificativa esta presente, mas..."). Prefira verbos
+  diretos ("Inclua", "Reescreva", "Ajuste") a "Considere" e "seria interessante".
 - Cada comentario deve ter no minimo duas frases: o que esta faltando ou errado, e como corrigir.
 - Cada comentario deve CITAR entre aspas um trecho curto do texto do aluno que motivou a observacao, ou
   dizer explicitamente que o elemento nao foi encontrado no capitulo.
@@ -674,6 +711,12 @@ def _validar(itens, rotulo, faixa=None):
         if limpo != comentario:
             logger.info("[%s] numero de paragrafo retirado do comentario: %r" % (rotulo, comentario[:80]))
             comentario = limpo
+        if _so_elogio(comentario):
+            logger.info("[%s] comentario que so elogia, descartado: %r" % (rotulo, comentario[:80]))
+            continue
+        if _pede_para_verificar(comentario):
+            logger.info("[%s] comentario vago de 'verificar se ha', descartado: %r" % (rotulo, comentario[:80]))
+            continue
         if _falso_excesso_de_objetivos(comentario):
             logger.warning("[%s] comentario de excesso de objetivos com 3 ou 4 objetivos, descartado: %r"
                            % (rotulo, comentario[:80]))
