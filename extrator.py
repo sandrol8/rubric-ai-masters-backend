@@ -42,6 +42,8 @@ def extrair_texto_docx_com_tabelas(caminho: str) -> str:
                 indice += 1
                 texto = bloco.text.strip()
                 if texto:
+                    if _e_recuado(bloco):
+                        texto = "(RECUO) " + texto
                     linhas[indice] = texto
                     ordem.append(indice)
                     ultimo_com_texto = indice
@@ -52,6 +54,15 @@ def extrair_texto_docx_com_tabelas(caminho: str) -> str:
         return "\n".join("[%d] %s" % (i, linhas[i]) for i in ordem)
     except Exception as e:
         return f"Erro ao extrair texto: {str(e)}"
+
+
+def _e_recuado(paragrafo):
+    """Paragrafo recuado da margem, como manda a APA para citacao longa (1,27 cm)."""
+    try:
+        recuo = paragrafo.paragraph_format.left_indent
+        return bool(recuo) and recuo.cm >= 1.0
+    except Exception:
+        return False
 
 
 def _texto_tabela(tabela):

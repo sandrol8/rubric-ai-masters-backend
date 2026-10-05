@@ -72,10 +72,12 @@ REGRAS GERAIS:
 1. DESCRICAO DA METODOLOGIA: O tipo de pesquisa (bibliografica, de campo, etc.) deve estar claramente descrito.
 2. FUNDAMENTACAO DA ESCOLHA: Minimo de 2 autores diferentes de metodologia cientifica. Antes de apontar falta, LISTE os autores de metodologia que encontrou no trecho.
 3. PERIODO DE REALIZACAO: Indicar meses e ano cursados na disciplina de capstone.
-4. PRINCIPIOS ETICOS: deve haver um paragrafo sobre os aspectos eticos. Em PESQUISA BIBLIOGRAFICA, basta
-   explicar que nao ha participacao de seres humanos nem coleta de dados pessoais, e NAO se exige aprovacao
-   do Comite de Etica. Em PESQUISA DE CAMPO, exija a informacao de aprovacao pelo Comite de Etica.
-   So aponte este item se nao houver nenhum paragrafo tratando de etica.
+4. PRINCIPIOS ETICOS: todo projeto da instituicao passa pelo Comite de Etica, inclusive o bibliografico.
+   O paragrafo de etica deve dizer as DUAS coisas: que o projeto foi aprovado pelo Comite de Etica e que
+   nao houve participacao de seres humanos (em pesquisa bibliografica) ou como foi a participacao deles
+   (em pesquisa de campo). Se faltar alguma das duas, aponte no proprio paragrafo de etica, no modelo:
+   "Mencione que o projeto foi aprovado pelo Comite de Etica e que nao houve participacao de seres humanos
+   nem coleta de dados pessoais." NUNCA escreva que nao se exige aprovacao do Comite.
 
 SE FOR PESQUISA BIBLIOGRAFICA (verificar todos os itens):
 5. DESCRITORES/PALAVRAS-CHAVE usados na busca.
@@ -94,7 +96,18 @@ SE FOR PESQUISA DE CAMPO/EMPIRICA:
     "referencial_capitulo": """
 Voce esta avaliando UM capitulo teorico. Verifique OBRIGATORIAMENTE, dentro deste capitulo:
 
-1. CITACAO DIRETA: ha pelo menos uma citacao direta, com aspas e indicacao de pagina? Aponte se nao houver.
+1. CITACAO DIRETA: ha pelo menos uma citacao direta no capitulo? Aponte se nao houver.
+   REGRAS DE CITACAO, siga com rigor:
+   a) Citacao direta e o texto copiado do autor. Citacao curta (ate 40 palavras) vai entre aspas, no corpo
+      do texto, com autor, ano e pagina.
+   b) Citacao longa (mais de 40 palavras) NAO leva aspas: vai em paragrafo recuado 1,27 cm da margem, com
+      autor, ano e pagina no fim. No texto que voce recebe, o paragrafo recuado comeca com a marca
+      "(RECUO)". Essa marca e do sistema: nunca cite a marca no comentario.
+   c) Se uma citacao longa aparecer SEM a marca (RECUO), aponte que ela precisa do recuo de 1,27 cm e da
+      retirada das aspas. Se um paragrafo com a marca (RECUO) estiver entre aspas, aponte que o recuo
+      dispensa as aspas.
+   d) Citacao INDIRETA e a parafrase, no formato (Autor, ano). Ela NAO leva pagina. NUNCA peca numero de
+      pagina em citacao indireta: so peca pagina quando o trecho estiver entre aspas ou recuado.
 2. CITACAO INDIRETA: ha parafrase com credito ao autor, no formato (Autor, ano)? Aponte se o capitulo so reproduzir ideias sem credito.
 3. FUNDAMENTACAO DAS AFIRMACOES: toda afirmacao relevante tem apoio teorico. Aponte trechos longos de opiniao sem respaldo.
 4. FONTES RECENTES: predominam obras dos ultimos 5 anos, salvo classicos reconhecidos. Aponte se a bibliografia do capitulo for majoritariamente antiga.
@@ -472,6 +485,30 @@ def _pede_para_verificar(texto):
     """Comentario vago do tipo 'seria importante verificar se ha outras fontes'."""
     t = _sem_acento(texto.lower())
     return bool(re.search(r"verific\w* se (ha|existe|existem)", t))
+
+
+def _pede_pagina(texto):
+    t = _sem_acento(texto.lower())
+    return bool(re.search(r"\bpagina|\bp\. ?\d|indicacao de pagina", t))
+
+
+def _tem_citacao_literal(texto_paragrafo):
+    """Paragrafo com trecho entre aspas ou recuado, onde a pagina e exigida de verdade."""
+    if texto_paragrafo.startswith("(RECUO)"):
+        return True
+    return bool(re.search(r"[\"“”][^\"“”]{25,}[\"“”]", texto_paragrafo))
+
+
+def _tirar_pedido_de_pagina(comentarios, linhas):
+    """Pagina so se exige em citacao direta. Em parafrase, o pedido nao se sustenta."""
+    aceitos = []
+    for idx, texto, tipo in comentarios:
+        paragrafo = linhas.get(idx, "")
+        if _pede_pagina(texto) and paragrafo and not _tem_citacao_literal(paragrafo):
+            logger.info("[pagina] pedido de pagina em citacao indireta, descartado: %r" % texto[:80])
+            continue
+        aceitos.append((idx, texto, tipo))
+    return aceitos
 
 
 def _limitar_repeticao_global(comentarios, blocos=None):
@@ -997,6 +1034,18 @@ def _garantir_content_type_comentarios(pasta_temp):
 
 # ------------------------------------------------------------ fluxo principal
 
+ITEM_PERIODO_CAPSTONE = "3. PERIODO DE REALIZACAO: Indicar meses e ano cursados na disciplina de capstone."
+
+
+def _criterio_do_capitulo(chave, modo_banca):
+    """Na banca o avaliador recebe o trabalho pronto, e cobrar os meses da disciplina de capstone nao cabe."""
+    criterio = CRITERIOS["referencial_capitulo"] if chave == "referencial" else CRITERIOS[chave]
+    if chave == "metodologia" and modo_banca:
+        criterio = criterio.replace(ITEM_PERIODO_CAPSTONE,
+                                    "3. PERIODO DE REALIZACAO: nao avalie este item.")
+    return criterio
+
+
 async def processar_documento(caminho_versao, caminho_projeto, nome_aluno, numero_versao,
                               capitulos, nome_professor="Professor(a)", avisar_ausentes=True):
     """avisar_ausentes: no modo orientacao a professora marca os capitulos presentes, entao um
@@ -1058,7 +1107,7 @@ async def processar_documento(caminho_versao, caminho_projeto, nome_aluno, numer
             logger.info("[%s] capitulo marcado e nao encontrado" % chave)
             continue
 
-        criterio = CRITERIOS["referencial_capitulo"] if chave == "referencial" else CRITERIOS[chave]
+        criterio = _criterio_do_capitulo(chave, not avisar_ausentes)
 
         for bloco in blocos_da_chave:
             rotulo = "%s/%s" % (chave, bloco["titulo"][:30])
@@ -1107,6 +1156,7 @@ async def processar_documento(caminho_versao, caminho_projeto, nome_aluno, numer
         finais.append((idx, texto, tipo))
     finais.sort(key=lambda c: c[0])
     finais = _limitar_repeticao_global(finais, blocos)
+    finais = _tirar_pedido_de_pagina(finais, dict(_linhas_numeradas(texto_versao)))
     finais = _revisar_tom(cliente, finais)
 
     logger.info("TOTAL de comentarios validos: %s" % len(finais))
