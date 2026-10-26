@@ -20,7 +20,15 @@ from docx.shared import Pt, RGBColor
 
 logger = logging.getLogger("rubric-ai-masters")
 
-MODELO = "gpt-4o"
+# Modelo da OpenAI usado neste arquivo.
+#
+# Trocado de gpt-4o para gpt-6-luna em 26/10/2026, antes do desligamento do gpt-4o
+# na API, marcado pela OpenAI para 14/01/2027.
+#
+# ATENCAO: este modelo NAO aceita o parametro "temperature" (apenas o valor padrao)
+# e NAO aceita "max_tokens" (o nome passou a ser "max_completion_tokens").
+# Enviar qualquer um dos dois devolve erro 400 e derruba a geracao do parecer.
+MODELO = "gpt-6-luna"
 
 # O servidor roda em UTC; o parecer precisa sair com a data do professor.
 FUSO_BRASILIA = timezone(timedelta(hours=-3))
@@ -209,7 +217,6 @@ def avaliar_para_parecer(cliente, texto_versao, nome_aluno):
                 {"role": "system", "content": sistema},
                 {"role": "user", "content": "TCF de %s:\n\n%s" % (nome_aluno, texto_versao[:90000])},
             ],
-            temperature=0.2,
         )
         dados = _extrair_json(resposta.choices[0].message.content)
     except Exception as e:
