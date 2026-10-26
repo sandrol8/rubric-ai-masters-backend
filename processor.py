@@ -39,9 +39,10 @@ MAX_POR_TEMA = 2
 # Temas que so podem aparecer UMA vez no documento inteiro.
 # Temas que so podem aparecer UMA vez no documento inteiro, e qual ocorrencia fica.
 # O valor diz em qual capitulo o comentario deve ficar, se houver mais de um. Sem ele, fica o primeiro.
-TEMAS_UNICOS_NO_DOCUMENTO = {"recorte_temporal": "metodologia", "justificativa": "introducao"}
+TEMAS_UNICOS_NO_DOCUMENTO = {"recorte_temporal": "metodologia", "justificativa": "introducao",
+                             "escrita": "introducao"}
 # Temas que so podem aparecer UMA vez por capitulo (regra de agrupamento do referencial).
-TEMAS_UNICOS_NO_CAPITULO = {"poucos_autores"}
+TEMAS_UNICOS_NO_CAPITULO = {"poucos_autores", "escrita"}
 # Semelhanca a partir da qual dois comentarios de capitulos diferentes contam como repetidos.
 LIMIAR_REPETICAO_GLOBAL = 0.5
 
@@ -138,9 +139,10 @@ Voce esta avaliando UM capitulo teorico. Verifique OBRIGATORIAMENTE, dentro dest
 8. ALINHAMENTO COM OS OBJETIVOS: o conteudo contribui para responder ao problema de pesquisa.
 9. FOCO E DELIMITACAO: aponte conteudo periferico que nao serve aos objetivos.
 10. COESAO, COERENCIA E ORTOGRAFIA: aponte problemas de encadeamento entre paragrafos.
-    ERRO DE ORTOGRAFIA E DIGITACAO, REGRA DA MUST: aponte NO MAXIMO TRES erros no documento inteiro, os mais
-    visiveis (titulo de capitulo, por exemplo), reunidos em UM UNICO comentario. Esse comentario termina
-    pedindo: "Faca uma revisao ortografica em todo o texto." Nao saia listando cada palavra errada: a revisao
+    ERRO DE ESCRITA, REGRA DA MUST: vale para ortografia, digitacao, concordancia verbal e nominal, regencia
+    e pontuacao. Aponte NO MAXIMO TRES erros no documento inteiro, os mais visiveis, reunidos em UM UNICO
+    comentario, ancorado no primeiro deles. Esse comentario termina pedindo: "Faca uma revisao ortografica e
+    gramatical em todo o texto." NAO gere um comentario por erro e NAO saia listando cada palavra: a revisao
     completa e tarefa do aluno.
 11. NORMA APA nas chamadas de autor dentro do texto.
 
@@ -372,7 +374,10 @@ FAMILIAS_TEMA = {
     "dialogo": ["dialogo", "conversam", "isolad", "confronto", "concordam", "divergem"],
     "voz_autoral": ["voz do aluno", "posicionamento critico", "autoral", "colagem", "voz autoral"],
     "norma_apa": ["norma apa", "formatacao apa", "padrao apa"],
-    "coesao": ["coesao", "coerencia", "ortograf", "encadeamento", "transicao"],
+    "coesao": ["coesao", "coerencia", "encadeamento", "transicao"],
+    # erro de escrita e UM tema: a Must quer um comentario so, com ate tres exemplos
+    "escrita": ["ortograf", "digitacao", "concordancia", "concordanci", "regencia", "pontuacao",
+                "erro de escrita", "revisao gramatical", "gramatical"],
     "confiabilidade": ["blog", "sem autoria", "site generico", "fonte nao academica"],
 }
 
@@ -851,6 +856,11 @@ REGRAS DE ESCRITA DOS COMENTARIOS:
 - NAO afirme que algo esta ausente sem ter procurado no texto recebido.
 - NAO comente paragrafos corretos. Foque em ausencias, erros e melhorias.
 - NUNCA escreva apenas o tipo do comentario como texto. O campo "comentario" e o texto que o aluno vai ler.
+ERRO DE ESCRITA, REGRA DA MUST, VALE EM TODO O TRABALHO: ortografia, digitacao, concordancia verbal e
+nominal, regencia e pontuacao entram todos no MESMO comentario. Reuna no maximo tres exemplos, os mais
+visiveis, num unico comentario ancorado no primeiro deles, terminando com "Faca uma revisao ortografica e
+gramatical em todo o texto." E PROIBIDO gerar um comentario para cada erro de escrita.
+
 REGRAS DE CITACAO DA MUST, VALEM EM TODO O TRABALHO, em qualquer capitulo:
 - NUMERO DE AUTORES: a Must ACEITA que o aluno escreva o nome de TODOS os autores da obra, mesmo com tres ou
   mais. E PROIBIDO pedir para trocar a lista por "et al.", e PROIBIDO tratar isso como erro de norma. Uma
