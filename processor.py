@@ -856,6 +856,10 @@ REGRAS DE ESCRITA DOS COMENTARIOS:
 - NAO afirme que algo esta ausente sem ter procurado no texto recebido.
 - NAO comente paragrafos corretos. Foque em ausencias, erros e melhorias.
 - NUNCA escreva apenas o tipo do comentario como texto. O campo "comentario" e o texto que o aluno vai ler.
+TEXTO CORTADO PELO SISTEMA: se aparecer no texto recebido uma marca entre colchetes dizendo que a tabela
+foi cortada pelo sistema, essa falta e NOSSA e nao do aluno. NUNCA comente que um registro, uma frase ou um
+quadro esta interrompido, incompleto ou pela metade por causa dela, e nao avalie o que viria depois.
+
 ERRO DE ESCRITA, REGRA DA MUST, VALE EM TODO O TRABALHO: ortografia, digitacao, concordancia verbal e
 nominal, regencia e pontuacao entram todos no MESMO comentario. Reuna no maximo tres exemplos, os mais
 visiveis, num unico comentario ancorado no primeiro deles, terminando com "Faca uma revisao ortografica e
