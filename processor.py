@@ -90,9 +90,16 @@ REGRAS GERAIS:
 
 SE FOR PESQUISA BIBLIOGRAFICA (verificar todos os itens):
 5. DESCRITORES/PALAVRAS-CHAVE usados na busca.
-6. RECORTE TEMPORAL: verifique APENAS se o recorte temporal da busca esta DECLARADO no texto (por exemplo, "de 2020 a 2025"). Se estiver declarado, o criterio esta ATENDIDO e voce NAO deve comentar nada sobre ele.
-   PROIBIDO, por decisao da Must: contar quantos anos o recorte abrange; compara-lo com "os ultimos 5 anos"; dizer que ficou longo, amplo ou que ultrapassa o limite; sugerir encurtar, ajustar ou alterar o intervalo. A Must ACEITA o recorte declarado pelo aluno, inclusive o de 2020 a 2025.
-   Comente SOMENTE se o recorte estiver AUSENTE, pedindo que o aluno informe o periodo utilizado na busca.
+6. RECORTE TEMPORAL: quem escolhe o periodo e o ALUNO, e a Must aceita a escolha dele, ate o limite de
+   11 anos. Verifique so duas coisas:
+   - o recorte esta DECLARADO no texto? Se nao estiver, peca que ele informe o periodo usado na busca.
+   - o recorte declarado passa de 11 anos? So nesse caso aponte que ficou longo demais.
+   PROIBIDO: contar quantos anos o recorte abrange, compara-lo com "os ultimos 5 anos", dizer que ficou longo
+   quando ele cabe no limite, ou sugerir encurtar um recorte aceito. Um recorte de 2020 a 2025 esta CORRETO.
+   COERENCIA COM O PROPRIO RECORTE: se o aluno declarou um periodo e incluiu no CORPUS da busca uma obra fora
+   dele, aponte a incoerencia entre o que ele definiu e o que ele usou. Obras classicas e seminais da area
+   ficam de fora dessa cobranca: elas podem aparecer em qualquer ano. Uma fonte com ano POSTERIOR ao fim do
+   recorte e aceitavel, mas vale chamar a atencao do aluno para a divergencia.
 7. PLATAFORMAS DE BUSCA (ex: SciELO, Periodicos CAPES, BDTD, Google Academico).
 8. IDIOMAS consultados (portugues, espanhol, ingles).
 9. CRITERIOS DE INCLUSAO E EXCLUSAO das obras.
@@ -119,6 +126,10 @@ Voce esta avaliando UM capitulo teorico. Verifique OBRIGATORIAMENTE, dentro dest
       dispensa as aspas.
    d) Citacao INDIRETA e a parafrase, no formato (Autor, ano). Ela NAO leva pagina. NUNCA peca numero de
       pagina em citacao indireta: so peca pagina quando o trecho estiver entre aspas ou recuado.
+   e) NUMERO DE AUTORES: a Must ACEITA que o aluno escreva o nome de todos os autores da obra, mesmo com tres
+      ou mais. NUNCA peca para trocar a lista de autores por "et al." nem trate isso como erro de norma.
+   f) FONTE INDICADA DUAS VEZES: quando o aluno ja apresenta os autores no inicio da frase e repete a mesma
+      chamada entre parenteses no fim, isso E ERRO. Indica-se a fonte uma vez apenas. Aponte quando ocorrer.
 2. CITACAO INDIRETA: ha parafrase com credito ao autor, no formato (Autor, ano)? Aponte se o capitulo so reproduzir ideias sem credito.
 3. FUNDAMENTACAO DAS AFIRMACOES: toda afirmacao relevante tem apoio teorico. Aponte trechos longos de opiniao sem respaldo.
 4. FONTES DO REFERENCIAL TEORICO: o recorte temporal da pesquisa vale para o CORPUS de artigos levantados na busca, NAO para a fundamentacao teorica deste capitulo.
@@ -130,7 +141,11 @@ Voce esta avaliando UM capitulo teorico. Verifique OBRIGATORIAMENTE, dentro dest
 7. VOZ DO ALUNO E POSICIONAMENTO CRITICO: ha costura autoral entre os conceitos, explicando como a teoria se aplica ao estudo. Aponte capitulo que seja apenas colagem de resumos.
 8. ALINHAMENTO COM OS OBJETIVOS: o conteudo contribui para responder ao problema de pesquisa.
 9. FOCO E DELIMITACAO: aponte conteudo periferico que nao serve aos objetivos.
-10. COESAO, COERENCIA E ORTOGRAFIA: aponte problemas de encadeamento entre paragrafos e erros de escrita.
+10. COESAO, COERENCIA E ORTOGRAFIA: aponte problemas de encadeamento entre paragrafos.
+    ERRO DE ORTOGRAFIA E DIGITACAO, REGRA DA MUST: aponte NO MAXIMO TRES erros no documento inteiro, os mais
+    visiveis (titulo de capitulo, por exemplo), reunidos em UM UNICO comentario. Esse comentario termina
+    pedindo: "Faca uma revisao ortografica em todo o texto." Nao saia listando cada palavra errada: a revisao
+    completa e tarefa do aluno.
 11. NORMA APA nas chamadas de autor dentro do texto.
 
 CAPITULO E SUBCAPITULOS, REGRA OBRIGATORIA:
@@ -145,9 +160,12 @@ dois autores dialogando."
 
 REGRA DE AGRUPAMENTO, OBRIGATORIA:
 Nao repita a mesma observacao em varios paragrafos. Se um problema se repete ao longo do capitulo (por
-exemplo, varias citacoes antigas, ou varios trechos sem apoio teorico), gere UM UNICO comentario que trate
-do problema no capitulo inteiro, citando dois ou tres exemplos dentro dele, ancorado no primeiro paragrafo
-onde o problema aparece. Gere no maximo 6 comentarios neste capitulo, cada um sobre um criterio diferente.
+exemplo, varias citacoes sem pagina, varias chamadas de autor fora da norma, ou varios trechos sem apoio
+teorico), gere UM UNICO comentario que trate do problema no capitulo inteiro, citando dois ou tres exemplos
+dentro dele, ancorado no primeiro paragrafo onde o problema aparece.
+Termine esse comentario pedindo ao aluno que revise o texto inteiro em busca das demais ocorrencias do
+mesmo tipo. Exemplo de fecho: "Revise o texto inteiro procurando outras citacoes na mesma situacao."
+Gere no maximo 6 comentarios neste capitulo, cada um sobre um criterio diferente.
 """,
     "referencial_secao": """
 Voce esta avaliando o CONJUNTO dos capitulos teoricos, nao o conteudo de um capitulo isolado.
@@ -157,7 +175,6 @@ Verifique OBRIGATORIAMENTE:
 
 1. LOGICA DA DIVISAO: a progressao entre os capitulos tem fio condutor claro (do geral ao especifico, do historico ao atual, ou outro criterio visivel). Aponte divisao arbitraria.
 2. TRANSICAO ENTRE CAPITULOS: a sequencia dos titulos sugere encadeamento, nao capitulos soltos.
-3. EQUILIBRIO DE EXTENSAO: aponte desproporcao grande entre capitulos, por exemplo um com o triplo do tamanho de outro.
 4. QUANTIDADE: o referencial deve ter entre 2 e 5 capitulos. Aponte se fugir disso.
 5. COBERTURA TEORICA: os titulos cobrem os temas exigidos pelos objetivos da pesquisa.
 
@@ -176,6 +193,11 @@ Verifique OBRIGATORIAMENTE:
 5. SENTIDO DOS DADOS: numeros e quadros devem ganhar leitura, nao apenas ser exibidos.
 6. QUADRO DE OBRAS RESULTANTES: se nao foi apresentado na Metodologia, deve estar aqui.
 7. APOIO TEORICO: aponte trecho longo de analise sem nenhuma citacao, comentando no proprio paragrafo. Nao conte paragrafos.
+8. SEPARACAO OBRIGATORIA DOS CAPITULOS: "Resultados e Discussao" e "Consideracoes Finais" sao capitulos
+   DISTINTOS e nao podem ser fundidos. Se o titulo deste capitulo juntar os dois (por exemplo "RESULTADOS E
+   CONCLUSOES", "RESULTADOS E CONSIDERACOES FINAIS", "DISCUSSAO E CONCLUSAO"), aponte no paragrafo do titulo
+   que o trabalho precisa de um capitulo de Resultados e Discussao e outro, separado, de Consideracoes Finais,
+   explicando o que vai em cada um. Esse comentario e obrigatorio quando a fusao acontece.
 """,
     "conclusao": """
 As CONSIDERACOES FINAIS devem ser claras, breves, objetivas e baseadas nos achados, e NAO devem conter
@@ -196,6 +218,26 @@ Verifique OBRIGATORIAMENTE:
 9. NENHUMA INFORMACAO NOVA que nao tenha sido desenvolvida no corpo do trabalho.
 """,
 }
+
+
+# Regras de quadro e tabela. Entram em metodologia, resultados e nos capitulos teoricos,
+# que e onde quadros aparecem. Vieram da correcao da Profa. Valeria, que cobra isso.
+REGRAS_QUADROS = """
+
+QUADROS E TABELAS, NORMA DA MUST:
+a) FONTE: todo quadro e toda tabela precisam indicar a fonte logo abaixo. Ha duas formas, e so duas:
+   - conteudo elaborado pelo proprio aluno: "Fonte: elaborado pelo autor ou autora, <ano>."
+   - conteudo tirado de uma obra: "Fonte: <Sobrenome do autor>, <ano da obra>."
+   Formas genericas como "Fonte: Dados da pesquisa." estao fora da norma. Aponte e mostre a forma correta.
+b) CONTEUDO DO QUADRO DE LEVANTAMENTO: o quadro das obras resultantes da busca deve conter SOMENTE as obras
+   do tema levantadas na pesquisa. Obras de metodologia cientifica, usadas para fundamentar o metodo, NAO
+   entram nesse quadro, porque nao tem relacao direta com o tema escolhido. Aponte se elas estiverem la.
+NAO avalie numeracao, titulo, ordem, nem a diferenca entre chamar de quadro ou de tabela, e nao cobre que o
+quadro seja chamado no corpo do texto. A Must nao exige isso.
+"""
+
+for _chave in ("metodologia", "resultados", "referencial_capitulo"):
+    CRITERIOS[_chave] = CRITERIOS[_chave] + REGRAS_QUADROS
 
 CRITERIO_ADERENCIA = """
 Voce esta fazendo UMA unica verificacao: a aderencia da monografia ao Projeto de Capstone aprovado.
@@ -352,23 +394,54 @@ def _assinatura(texto):
     return set(palavras)
 
 
+_ASPAS = r"[\"'\u201c\u201d\u2018\u2019\u00ab\u00bb]"
+
+
+def _trechos_citados(texto):
+    """Trechos do trabalho do aluno que o comentario reproduz entre aspas.
+
+    Servem de impressao digital: dois comentarios que citam o MESMO trecho estao
+    falando do mesmo problema, mesmo que a redacao mude. Foi assim que escaparam
+    dois comentarios sobre o mesmo erro de digitacao no titulo de um capitulo.
+    """
+    achados = set()
+    for t in re.findall(_ASPAS + r"([^\"'\u201c\u201d\u2018\u2019\u00ab\u00bb]{8,})" + _ASPAS, texto):
+        chave = re.sub(r"[^a-z0-9]+", "", _sem_acento(t.lower()))
+        if len(chave) >= 8:
+            achados.add(chave[:80])
+    return achados
+
+
 def _limitar_repeticao(validos, rotulo):
-    """Descarta comentario muito parecido com outro ja aceito no mesmo bloco."""
+    """Descarta comentario repetido dentro do mesmo bloco.
+
+    O teto de %s comentarios por capitulo vale para todos, por decisao da Must. Alem do
+    filtro por tema e por semelhanca de redacao, dois comentarios que reproduzem o mesmo
+    trecho entre aspas contam como o mesmo problema: o segundo cai.
+    """ % MAX_COMENTARIOS_POR_BLOCO
     aceitos = []
     assinaturas = []
     por_tema = {}
+    trechos_usados = set()
+    conceituais = 0
     # o comentario de subcapitulo, no formato da Valeria, tem prioridade sobre os de paragrafo
     validos = sorted(validos, key=lambda c: 0 if _sem_acento(c[1].lower()).startswith("neste subcapitulo") else 1)
     for idx, texto, tipo in validos:
-        if len(aceitos) >= MAX_COMENTARIOS_POR_BLOCO:
-            logger.info("[%s] teto de %s comentarios atingido, restante descartado"
+        citados = _trechos_citados(texto)
+        if citados and (citados & trechos_usados):
+            logger.info("[%s] mesmo trecho citado em outro comentario, descartado: %r"
+                        % (rotulo, texto[:60]))
+            continue
+
+        if conceituais >= MAX_COMENTARIOS_POR_BLOCO:
+            logger.info("[%s] teto de %s comentarios conceituais atingido, restante descartado"
                         % (rotulo, MAX_COMENTARIOS_POR_BLOCO))
-            break
+            continue
         tema = _familia(texto)
         limite_tema = 1 if tema in TEMAS_UNICOS_NO_CAPITULO else MAX_POR_TEMA
         if tema and por_tema.get(tema, 0) >= limite_tema:
             logger.info("[%s] tema %s ja tem %s comentarios, descartado: %r"
-                        % (rotulo, tema, MAX_POR_TEMA, texto[:60]))
+                        % (rotulo, tema, limite_tema, texto[:60]))
             continue
         atual = _assinatura(texto)
         repetido = False
@@ -381,8 +454,10 @@ def _limitar_repeticao(validos, rotulo):
             logger.info("[%s] comentario repetido descartado: %r" % (rotulo, texto[:60]))
             continue
         assinaturas.append(atual)
+        trechos_usados |= citados
         if tema:
             por_tema[tema] = por_tema.get(tema, 0) + 1
+        conceituais += 1
         aceitos.append((idx, texto, tipo))
     return aceitos
 
@@ -552,7 +627,13 @@ def _limitar_repeticao_global(comentarios, blocos=None):
     aceitos = []
     assinaturas = []
     temas_usados = set()
+    trechos_usados = set()
     for idx, texto, tipo in comentarios:
+        citados = _trechos_citados(texto)
+        if citados and (citados & trechos_usados):
+            logger.info("[global] mesmo trecho citado em outro comentario, descartado: %r" % texto[:60])
+            continue
+
         tema_unico = None if tipo == "desvio_projeto" else _familia(texto)
         if tema_unico in ultimo_por_tema and idx != ultimo_por_tema[tema_unico]:
             logger.info("[global] %s comentado mais adiante no texto, este descartado: %r"
@@ -577,6 +658,7 @@ def _limitar_repeticao_global(comentarios, blocos=None):
             logger.info("[global] comentario repetido descartado: %r" % texto[:60])
             continue
         assinaturas.append(atual)
+        trechos_usados |= citados
         if tema:
             temas_usados.add(tema)
         aceitos.append((idx, texto, tipo))
@@ -662,7 +744,11 @@ def fatiar_documento(texto_numerado):
             marcos.append((pos, _classificar_nome(resto) or "referencial", texto))
             capitulo_atual = numero
             aguardando_numero = False
-        elif nivel and nivel >= 2 and numero != capitulo_atual:
+        elif nivel and nivel >= 2 and capitulo_atual is None:
+            # subtitulo numerado sem capitulo pai conhecido: vira capitulo por falta de opcao.
+            # Quando o capitulo pai JA foi reconhecido, o subcapitulo fica DENTRO dele, de proposito:
+            # avaliando o capitulo inteiro de uma vez, a analise deixa de dizer que falta fundamentacao
+            # teorica no capitulo 3 quando os autores estao citados em 3.1 e 3.2.
             marcos.append((pos, "referencial", texto))
             capitulo_atual = numero
 
@@ -759,12 +845,21 @@ REGRAS DE ESCRITA DOS COMENTARIOS:
 - Va direto ao problema. NAO comece validando o que esta certo ("A citacao esta correta, mas...",
   "O problema esta bem formulado, mas...", "A justificativa esta presente, mas..."). Prefira verbos
   diretos ("Inclua", "Reescreva", "Ajuste") a "Considere" e "seria interessante".
-- Cada comentario deve ter no minimo duas frases: o que esta faltando ou errado, e como corrigir.
+- COMENTARIO CURTO, por decisao da Must. Uma ou duas frases, no maximo tres. Diga o que esta errado e o que
+  fazer, e pare. Exemplos do tamanho esperado, escritos por professora da banca: "Indica-se a pagina aqui.";
+  "Nao se usa aspas em citacao direta com recuo."; "Evite periodos curtos como este."
+  NAO explique a norma, NAO justifique o apontamento, NAO repita o que o aluno escreveu alem do trecho curto
+  entre aspas que ancora a observacao.
 - Cada comentario deve CITAR entre aspas um trecho curto do texto do aluno que motivou a observacao, ou
   dizer explicitamente que o elemento nao foi encontrado no capitulo.
 - NAO afirme que algo esta ausente sem ter procurado no texto recebido.
 - NAO comente paragrafos corretos. Foque em ausencias, erros e melhorias.
 - NUNCA escreva apenas o tipo do comentario como texto. O campo "comentario" e o texto que o aluno vai ler.
+- PROIBIDO QUANTIFICAR, por decisao da Must: nenhum comentario pode trazer contagem de palavras, de linhas,
+  de paragrafos, de citacoes, de autores ou de capitulos. Nada de "o capitulo tem 2.340 palavras", "tres
+  paragrafos sem citacao", "apenas dois autores". Descreva o problema com palavras, sem numero nenhum.
+  A unica excecao sao numeros que o PROPRIO ALUNO escreveu e que voce esta citando de volta (um ano, um
+  recorte temporal, a quantidade de artigos do corpus que ele informou).
 
 Retorne APENAS um JSON valido, sem markdown e sem texto adicional:
 [{"paragrafo_indice": 0, "comentario": "texto do comentario", "tipo": "melhoria"}]
@@ -806,7 +901,7 @@ def _chamar_ia(cliente, instrucao_criterios, texto_usuario, rotulo, ja_comentado
 
 def _validar(itens, rotulo, faixa=None):
     """Descarta comentario quebrado, vazio, com indice invalido ou igual ao tipo."""
-    tipos = {"ausencia", "melhoria", "desvio_projeto", "aprovado", "erro", "placeholder"}
+    tipos = {"ausencia", "melhoria", "desvio_projeto", "aprovado", "erro", "placeholder", "abertura"}
     validos = []
     for item in itens:
         if not isinstance(item, dict):
@@ -859,7 +954,9 @@ Para CADA comentario, faca uma destas duas coisas:
    autores e os trechos citados entre aspas. Tire aberturas que validam antes de criticar
    ("A citacao esta correta, mas", "O paragrafo e pertinente, mas", "Embora o paragrafo traga").
    Troque "Considere", "seria interessante", "poderia" e "seria importante" por verbos diretos
-   ("Inclua", "Reescreva", "Ajuste", "Aprofunde"). Duas ou tres frases no maximo. Pode terminar com
+   ("Inclua", "Reescreva", "Ajuste", "Aprofunde"). UMA OU DUAS FRASES, no maximo tres: o comentario curto e
+   o formato que a Must pediu, entao ENCURTE o que vier longo, cortando explicacao de norma e justificativa.
+   Pode terminar com
    "Ajustar." quando fizer sentido. Exemplo do tom esperado:
    "O recorte temporal definido para a pesquisa bibliografica foi muito longo (de 2015 a 2025).
    Recomenda-se o recorte temporal dos ultimos 5 anos. Ajustar."
@@ -869,6 +966,10 @@ Para CADA comentario, faca uma destas duas coisas:
 
 Nunca escreva numero de paragrafo. Nunca invente problema que nao estava no comentario original.
 Comentarios que comecam com "Neste subcapitulo" devem continuar comecando assim.
+
+NAO QUANTIFIQUE. Tire da reescrita qualquer contagem de palavras, linhas, paragrafos, citacoes ou autores.
+Numeros que o proprio aluno escreveu podem ficar.
+NAO JUNTE DOIS COMENTARIOS DA LISTA NUM SO: cada um tem o seu lugar no documento.
 
 Retorne APENAS um JSON valido, sem markdown:
 [{"id": 0, "comentario": "texto reescrito ou vazio"}]
@@ -915,6 +1016,62 @@ def _revisar_tom(cliente, comentarios):
         revisados.append((idx, novo, tipo))
     logger.info("[revisao] %s de %s comentario(s) mantidos" % (len(revisados), len(comentarios)))
     return revisados
+
+
+# ------------------------------------------------- saudacao de abertura
+
+NOMES_GENERICOS_DE_PROFESSOR = {"professor", "professora", "professor(a)", "membro da banca",
+                                "orientador", "orientadora", "avaliador", "avaliadora"}
+
+
+TITULOS_ACADEMICOS = {"prof", "profa", "professor", "professora", "dr", "dra", "doutor",
+                      "doutora", "me", "ma", "mestre", "mestra", "esp", "sr", "sra"}
+
+
+def _primeiro_nome(nome):
+    """Primeiro nome de verdade, pulando titulo academico: 'Prof. Sandro Luiz' -> 'Sandro'."""
+    for parte in (nome or "").replace(".", " ").split():
+        if len(parte) > 1 and _sem_acento(parte.lower()) not in TITULOS_ACADEMICOS:
+            return parte.capitalize()
+    return ""
+
+
+def _comentario_de_abertura(texto_numerado, nome_aluno, nome_professor):
+    """Comentário de saudação no inicio do trabalho, no formato que a banca usa.
+
+    A Must pediu que o trabalho comentado abra com uma saudação ao aluno, como as
+    professoras fazem a mao. Ele e montado aqui, em Python, e nao passa pela IA nem
+    pelos filtros: nao aponta problema e seria descartado por eles.
+    """
+    aluno = _primeiro_nome(nome_aluno)
+    if not aluno:
+        return None
+
+    professor = (nome_professor or "").strip()
+    if _sem_acento(professor.lower()) in {_sem_acento(n) for n in NOMES_GENERICOS_DE_PROFESSOR}:
+        professor = ""
+
+    linhas = _linhas_numeradas(texto_numerado)
+    if not linhas:
+        return None
+
+    alvo = _sem_acento((nome_aluno or "").lower())
+    idx = linhas[0][0]
+    for indice, texto in linhas[:40]:
+        if alvo and _sem_acento(texto.lower()).strip() == alvo:
+            idx = indice
+            break
+
+    # Este texto e lido pelo aluno, entao vai acentuado, ao contrario das instrucoes internas.
+    if professor:
+        abertura = "Ol\u00e1, %s, me chamo %s e tive o privil\u00e9gio de analisar o seu TCF." % (
+            aluno, _primeiro_nome(professor))
+    else:
+        abertura = "Ol\u00e1, %s, tive o privil\u00e9gio de analisar o seu TCF." % aluno
+
+    texto = (abertura + " Parab\u00e9ns pelo trabalho desenvolvido. As sugest\u00f5es apresentadas "
+             "buscam qualificar ainda mais a sua produ\u00e7\u00e3o. Forte abra\u00e7o.")
+    return (idx, texto, "abertura")
 
 
 # ------------------------------------------------- insercao dos comentarios
@@ -1151,9 +1308,8 @@ async def processar_documento(caminho_versao, caminho_projeto, nome_aluno, numer
     # 3. visao do conjunto dos capitulos teoricos
     teoricos = [b for b in blocos if b["chave"] == "referencial" and not tem_placeholder(b["texto"])]
     if "referencial" in selecionados and len(teoricos) >= 2:
-        resumo = "\n".join("[%d] %s (%d paragrafos, %d palavras)"
-                           % (b["idx_inicio"], b["titulo"], b["paragrafos"], b["palavras"])
-                           for b in teoricos)
+        # sem numero de paragrafos nem de palavras: a Must proibiu comentario que quantifica
+        resumo = "\n".join("[%d] %s" % (b["idx_inicio"], b["titulo"]) for b in teoricos)
         usuario = ("Capitulos teoricos da monografia de %s (V%s):\n\n%s" % (nome_aluno, numero_versao, resumo))
         itens = _chamar_ia(cliente, CRITERIOS["referencial_secao"], usuario, "referencial/conjunto",
                            ja_comentados=comentarios)
@@ -1175,6 +1331,12 @@ async def processar_documento(caminho_versao, caminho_projeto, nome_aluno, numer
     finais = _limitar_repeticao_global(finais, blocos)
     finais = _tirar_pedido_de_pagina(finais, dict(_linhas_numeradas(texto_versao)))
     finais = _revisar_tom(cliente, finais)
+
+    abertura = _comentario_de_abertura(texto_versao, nome_aluno, nome_professor)
+    if abertura:
+        finais = [abertura] + [c for c in finais if c[0] != abertura[0] or c[2] != "abertura"]
+        finais.sort(key=lambda c: (c[0], 0 if c[2] == "abertura" else 1))
+        logger.info("[abertura] saudacao inserida no paragrafo %s" % abertura[0])
 
     logger.info("TOTAL de comentarios validos: %s" % len(finais))
 
