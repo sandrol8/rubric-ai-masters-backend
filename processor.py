@@ -22,7 +22,16 @@ CT_NS = "http://schemas.openxmlformats.org/package/2006/content-types"
 RELS_NS = "http://schemas.openxmlformats.org/package/2006/relationships"
 NSMAP = {"w": W_NS}
 
-MODELO = "gpt-4o"
+# Modelo da OpenAI usado em todas as chamadas deste arquivo.
+#
+# Trocado de gpt-4o para gpt-6-luna em 26/10/2026, antes do desligamento do gpt-4o
+# na API, marcado pela OpenAI para 14/01/2027.
+#
+# ATENCAO ao mexer nas chamadas deste arquivo: este modelo NAO aceita o parametro
+# "temperature" (apenas o valor padrao) e NAO aceita "max_tokens" (o nome passou a
+# ser "max_completion_tokens"). Enviar qualquer um dos dois devolve erro 400 e
+# derruba a correcao inteira.
+MODELO = "gpt-6-luna"
 TAMANHO_MINIMO_COMENTARIO = 40
 MAX_COMENTARIOS_POR_BLOCO = 8
 LIMIAR_REPETICAO = 0.32
@@ -773,7 +782,6 @@ def _chamar_ia(cliente, instrucao_criterios, texto_usuario, rotulo, ja_comentado
                 {"role": "system", "content": prompt_sistema},
                 {"role": "user", "content": texto_usuario[:60000] + _bloco_ja_comentados(ja_comentados)},
             ],
-            temperature=0.2,
         )
         bruto = resposta.choices[0].message.content
         itens = extrair_resposta_json(bruto)
@@ -872,7 +880,6 @@ def _revisar_tom(cliente, comentarios):
                 {"role": "system", "content": INSTRUCAO_REVISAO},
                 {"role": "user", "content": json.dumps(lista, ensure_ascii=False)},
             ],
-            temperature=0.2,
         )
         itens = extrair_resposta_json(resposta.choices[0].message.content)
         novos = {int(it["id"]): (it.get("comentario") or "").strip()
