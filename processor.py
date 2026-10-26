@@ -126,10 +126,6 @@ Voce esta avaliando UM capitulo teorico. Verifique OBRIGATORIAMENTE, dentro dest
       dispensa as aspas.
    d) Citacao INDIRETA e a parafrase, no formato (Autor, ano). Ela NAO leva pagina. NUNCA peca numero de
       pagina em citacao indireta: so peca pagina quando o trecho estiver entre aspas ou recuado.
-   e) NUMERO DE AUTORES: a Must ACEITA que o aluno escreva o nome de todos os autores da obra, mesmo com tres
-      ou mais. NUNCA peca para trocar a lista de autores por "et al." nem trate isso como erro de norma.
-   f) FONTE INDICADA DUAS VEZES: quando o aluno ja apresenta os autores no inicio da frase e repete a mesma
-      chamada entre parenteses no fim, isso E ERRO. Indica-se a fonte uma vez apenas. Aponte quando ocorrer.
 2. CITACAO INDIRETA: ha parafrase com credito ao autor, no formato (Autor, ano)? Aponte se o capitulo so reproduzir ideias sem credito.
 3. FUNDAMENTACAO DAS AFIRMACOES: toda afirmacao relevante tem apoio teorico. Aponte trechos longos de opiniao sem respaldo.
 4. FONTES DO REFERENCIAL TEORICO: o recorte temporal da pesquisa vale para o CORPUS de artigos levantados na busca, NAO para a fundamentacao teorica deste capitulo.
@@ -855,6 +851,15 @@ REGRAS DE ESCRITA DOS COMENTARIOS:
 - NAO afirme que algo esta ausente sem ter procurado no texto recebido.
 - NAO comente paragrafos corretos. Foque em ausencias, erros e melhorias.
 - NUNCA escreva apenas o tipo do comentario como texto. O campo "comentario" e o texto que o aluno vai ler.
+REGRAS DE CITACAO DA MUST, VALEM EM TODO O TRABALHO, em qualquer capitulo:
+- NUMERO DE AUTORES: a Must ACEITA que o aluno escreva o nome de TODOS os autores da obra, mesmo com tres ou
+  mais. E PROIBIDO pedir para trocar a lista por "et al.", e PROIBIDO tratar isso como erro de norma. Uma
+  chamada como "Sousa, Utsch e Cardozo (2024)" esta CORRETA e nao deve ser comentada.
+- FONTE INDICADA DUAS VEZES: quando o aluno apresenta os autores no inicio da frase e repete a mesma chamada
+  entre parenteses no fim, isso E ERRO. Indica-se a fonte uma vez apenas.
+- PAGINA: so se exige em citacao direta, entre aspas ou em bloco recuado. NUNCA peca pagina em parafrase.
+- CITACAO LONGA, mais de 40 palavras: bloco recuado, SEM aspas, com a chamada ao final.
+
 - PROIBIDO QUANTIFICAR, por decisao da Must: nenhum comentario pode trazer contagem de palavras, de linhas,
   de paragrafos, de citacoes, de autores ou de capitulos. Nada de "o capitulo tem 2.340 palavras", "tres
   paragrafos sem citacao", "apenas dois autores". Descreva o problema com palavras, sem numero nenhum.
