@@ -3,6 +3,21 @@ from docx.table import Table
 from docx.text.paragraph import Paragraph
 from docx.oxml.ns import qn
 
+# Quanto texto de UMA tabela vai junto com o paragrafo que a antecede.
+#
+# Era 4000 e isso causava um erro silencioso e grave: o Quadro das obras do corpus,
+# em trabalhos com muitas obras, chegava cortado na analise. Num caso real o quadro
+# tinha 4133 caracteres, as ultimas obras sumiam e a IA ainda comentava que o registro
+# do aluno estava "interrompido", porque de fato estava interrompido no que ela recebeu.
+#
+# O limite por chamada ao modelo e de 60000 caracteres por capitulo, entao 12000 para
+# uma tabela e folgado. Quando ainda assim estourar, o corte passa a ser DECLARADO no
+# texto, para a IA saber que a falta e do sistema e nao do aluno.
+LIMITE_TEXTO_TABELA = 12000
+AVISO_TABELA_CORTADA = (" [ATENCAO: a tabela e maior do que isto e foi cortada pelo sistema neste "
+                        "ponto. O texto do aluno NAO esta incompleto aqui. NAO comente essa "
+                        "interrupcao e NAO avalie o que viria depois dela.]")
+
 
 def extrair_texto_docx(caminho: str) -> str:
     """Extrai o texto completo de um arquivo .docx, numerado por paragrafo.
@@ -50,7 +65,9 @@ def extrair_texto_docx_com_tabelas(caminho: str) -> str:
             else:
                 conteudo = _texto_tabela(bloco)
                 if conteudo and ultimo_com_texto is not None:
-                    linhas[ultimo_com_texto] += " (TABELA: %s)" % conteudo[:4000]
+                    if len(conteudo) > LIMITE_TEXTO_TABELA:
+                        conteudo = conteudo[:LIMITE_TEXTO_TABELA] + AVISO_TABELA_CORTADA
+                    linhas[ultimo_com_texto] += " (TABELA: %s)" % conteudo
         return "\n".join("[%d] %s" % (i, linhas[i]) for i in ordem)
     except Exception as e:
         return f"Erro ao extrair texto: {str(e)}"
