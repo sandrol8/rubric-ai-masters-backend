@@ -90,7 +90,9 @@ REGRAS GERAIS:
 
 SE FOR PESQUISA BIBLIOGRAFICA (verificar todos os itens):
 5. DESCRITORES/PALAVRAS-CHAVE usados na busca.
-6. RECORTE TEMPORAL: deve ser dos ultimos 5 anos. Se o periodo usado for maior, diga que o recorte ficou longo, cite o periodo que o aluno usou e recomende os ultimos 5 anos. NAO diga quais anos sao os corretos e NAO chame o recorte de \"incorreto\". Comente o recorte UMA unica vez, no paragrafo onde ele e definido, e nao volte ao assunto nos criterios de inclusao e exclusao.
+6. RECORTE TEMPORAL: verifique APENAS se o recorte temporal da busca esta DECLARADO no texto (por exemplo, "de 2020 a 2025"). Se estiver declarado, o criterio esta ATENDIDO e voce NAO deve comentar nada sobre ele.
+   PROIBIDO, por decisao da Must: contar quantos anos o recorte abrange; compara-lo com "os ultimos 5 anos"; dizer que ficou longo, amplo ou que ultrapassa o limite; sugerir encurtar, ajustar ou alterar o intervalo. A Must ACEITA o recorte declarado pelo aluno, inclusive o de 2020 a 2025.
+   Comente SOMENTE se o recorte estiver AUSENTE, pedindo que o aluno informe o periodo utilizado na busca.
 7. PLATAFORMAS DE BUSCA (ex: SciELO, Periodicos CAPES, BDTD, Google Academico).
 8. IDIOMAS consultados (portugues, espanhol, ingles).
 9. CRITERIOS DE INCLUSAO E EXCLUSAO das obras.
@@ -119,7 +121,10 @@ Voce esta avaliando UM capitulo teorico. Verifique OBRIGATORIAMENTE, dentro dest
       pagina em citacao indireta: so peca pagina quando o trecho estiver entre aspas ou recuado.
 2. CITACAO INDIRETA: ha parafrase com credito ao autor, no formato (Autor, ano)? Aponte se o capitulo so reproduzir ideias sem credito.
 3. FUNDAMENTACAO DAS AFIRMACOES: toda afirmacao relevante tem apoio teorico. Aponte trechos longos de opiniao sem respaldo.
-4. FONTES RECENTES: predominam obras dos ultimos 5 anos, salvo classicos reconhecidos. Aponte se a bibliografia do capitulo for majoritariamente antiga.
+4. FONTES DO REFERENCIAL TEORICO: o recorte temporal da pesquisa vale para o CORPUS de artigos levantados na busca, NAO para a fundamentacao teorica deste capitulo.
+   Obras classicas e seminais da area sao ACEITAS e BEM-VINDAS no referencial, qualquer que seja o ano. Exemplos do tipo de obra protegida por esta regra: Freire, Vygotsky, Piaget, Bakhtin, Wallon, Libaneo, Tardif, Nobrega e outros autores de referencia do campo.
+   PROIBIDO, por decisao da Must: apontar uma obra classica ou seminal como antiga, desatualizada, fora do recorte ou pouco atual; pedir para substitui-la por fonte recente; pedir "fontes mais atuais" quando o autor citado for referencia consagrada do tema.
+   Comente a atualidade do capitulo SOMENTE no caso raro em que ele se apoia inteiramente em material datado que nao e classico reconhecido e nao traz nenhuma obra recente.
 5. CONFIABILIDADE DA FONTE: as fontes sao academicas (periodicos, livros, teses). Aponte uso de blog, site generico ou fonte sem autoria.
 6. DIALOGO ENTRE AUTORES: os autores conversam entre si, com concordancias e divergencias. Aponte como erro a sequencia de citacoes isoladas, um autor por paragrafo, sem conexao.
 7. VOZ DO ALUNO E POSICIONAMENTO CRITICO: ha costura autoral entre os conceitos, explicando como a teoria se aplica ao estudo. Aponte capitulo que seja apenas colagem de resumos.
@@ -314,8 +319,13 @@ def _pre_texto(texto_numerado, limite=40):
 FAMILIAS_TEMA = {
     "poucos_autores": ["mais autores", "apenas um autor", "um unico autor", "outros autores",
                        "diversificar as fontes", "outras fontes", "mais fontes"],
+    # marcas largas de proposito: o recorte so pode ser comentado UMA vez no documento,
+    # e as variacoes de redacao ("o recorte de", "ultimos cinco anos") escapavam da trava antiga
     "recorte_temporal": ["recorte temporal", "delimitacao temporal", "periodo de busca",
-                         "periodo da pesquisa", "periodo de publicacao"],
+                         "periodo da pesquisa", "periodo de publicacao", "recorte de",
+                         "recorte estabelecido", "recorte definido", "recorte adotado",
+                         "intervalo de busca", "intervalo temporal",
+                         "ultimos cinco anos", "ultimos 5 anos"],
     "justificativa": ["justificativa"],
     "atualidade": ["antig", "recent", "atuali", "contemporane", "classic", "desatualiz"],
     "citacao_direta": ["citacao direta", "aspas", "indicacao de pagina"],
